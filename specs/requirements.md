@@ -1,129 +1,131 @@
 # Requirements — Staff Scheduling System
 
 Source: `SWE_Take_Home_Staff_Scheduling_System.pdf` v1.1. Open points resolved in
-`docs/business-analysis.md`. This file is the ticket breakdown — each ticket is self-contained
-enough for a coder to implement without re-reading the PDF.
+`docs/business-analysis.md`. This file is the ticket breakdown: each ticket is self-contained
+enough to implement without re-reading the PDF.
 
-Stack: NestJS + Supabase (Postgres) backend, React + Tailwind + Ant Design + Lucide-react frontend.
-Monolith repo, `frontend/` + `backend/` + `shared/types/`. No auth.
-
----
-
-## Data model (shared baseline for all tickets)
-
-```
-Schedule      { id, name, created_at }
-Staff         { id, schedule_id, name, max_weekly_hours }
-Shift         { id, schedule_id, start_time, end_time }   -- seeded: 07:00-15:00, 15:00-23:00
-Transaction   { id, schedule_id, day_index(0-6), hour(7-22), count }
-Assignment    { id, schedule_id, staff_id, shift_id, day_index(0-6), source: 'auto'|'manual' }
-```
-- `day_index` is positional (0 = first CSV column / first day added), not a fixed Mon=0. Each
-  schedule stores its own day labels as uploaded.
-- An hour's "staffed count" = number of Assignments whose shift covers that hour, that day.
+Stack: React + Vite + TypeScript (strict) + Tailwind + Ant Design + Lucide-react + Zustand.
+**Fully client-side**: state lives in one Zustand store persisted to localStorage. No backend, no auth.
+Business logic = pure functions in `frontend/src/lib/`; UI never touches localStorage directly.
 
 ---
 
-## Ticket 1 — Schedule CRUD
-**Goal**: create/list/select/delete a schedule (top-level container).
-**Input**: schedule name.
-**Output**: Schedule entity; selecting one loads its staff/shifts/transactions/assignments.
+## Data model (`frontend/src/types.ts`)
+
+```ts
+type Schedule = {
+  id: string
+  name: string
+  createdAt: string
+  nPerStaff: number            // demand constant N, default 15
+  dayLabels: string[]          // from CSV header, e.g. ["Fri, 07 Aug", ...]; default Mon..Sun
+  staff: Staff[]
+  shifts: Shift[]              // seeded: 07:00-15:00, 15:00-23:00
+  transactions: Record<string, number>  // key `${dayIndex}-${hour}` -> count
+  assignments: Assignment[]
+}
+type Staff = { id: string; name: string; maxWeeklyHours: number }
+type Shift = { id: string; start: string; end: string }          // "HH:mm"
+type Assignment = { id: string; staffId: string; shiftId: string; dayIndex: number; source: 'auto' | 'manual' }
+```
+
+- `dayIndex` is positional (0 = first CSV column), not fixed Mon=0.
+- An hour's staffed count = number of Assignments whose shift covers that hour on that day.
+- Store: `frontend/src/store/useScheduleStore.ts` (Zustand `persist`, key `staff-scheduling-v1`, with
+  `version` + `migrate`; unparsable data resets to seed and notifies the user).
+- Deleting staff or shift also deletes the Assignments that reference it (no orphans).
+
+---
+
+## Ticket 1 — Store + Schedule CRUD
+**Goal**: create/list/select/delete schedules (top-level container). Creating a schedule stays on the list (no
+auto-navigation). N (`nPerStaff`, default 15) is editable per schedule in the workspace header.
 **Steps**:
-1. Backend: `SchedulesModule` — POST/GET/GET:id/DELETE `/schedules`.
-2. On create, auto-seed two default Shifts (07:00–15:00, 15:00–23:00) for that schedule.
-3. Frontend: schedule list/create page, selecting one routes into the schedule workspace.
+1. Create the store and types above; actions: `createSchedule`, `deleteSchedule`, `selectSchedule`.
+2. `createSchedule` seeds the two default shifts.
+3. UI: schedule list/create page; selecting one opens its workspace (react-router).
+4. Corrupt/missing localStorage → seed state, show a notification with next step.
 
 ## Ticket 2 — Staff CRUD
-**Goal**: add/edit/remove staff within a schedule.
-**Input**: name (required), max_weekly_hours (required, positive number).
-**Output**: Staff list scoped to schedule.
-**Steps**:
-1. Backend: DTO-validated CRUD under `/schedules/:id/staff`. Reject name empty, max_weekly_hours <= 0.
-2. Deleting staff cascades: remove their Assignments too (don't leave orphans).
-3. Frontend: staff table with inline add/edit/remove (Ant Table + modal or inline edit — no full-page forms).
+**Goal**: add/edit/remove staff within the selected schedule.
+**Validation**: name non-empty (trimmed), `maxWeeklyHours` > 0 and <= 168.
+**Steps**: store actions `addStaff/updateStaff/removeStaff` (remove cascades assignments); AntD table with
+modal or inline edit, no full-page forms.
 
-## Ticket 3 — Transaction (demand) CSV import
-**Goal**: upload CSV, populate Transaction rows for the schedule.
-**Input**: CSV file matching sample layout (title row, day-header row, hour rows "7am".."10pm").
-**Output**: Transaction rows (day_index 0-6 by column order, hour 7-22), or a clear validation error.
-**Steps**:
-1. Backend endpoint `POST /schedules/:id/transactions/import` (multipart).
-2. Parser: skip title row; header row → day columns in order (becomes day_index 0..n-1); each
-   subsequent row → hour label ("7am"→7, "1pm"→13) + per-column integer count.
-3. Validation: hour label must parse, count must be non-negative integer, row/column count
-   consistent across all rows. On any failure, reject whole file, return which row/column failed.
-4. Re-importing replaces prior Transaction rows for that schedule (overwrite, not append).
-5. Frontend: upload control + success/error feedback with the specific row/column on failure.
+## Ticket 3 — Transaction CSV import
+**Goal**: upload CSV, fill `transactions` and `dayLabels`.
+**Input**: layout of `sample_transaction_interview.csv` (title row, day-header row, hour rows "7am".."10pm").
+**Pure function**: `parseTransactionCsv(text): { dayLabels, transactions } | { error: { row, col, message } }`.
+**Rules**:
+1. Skip title row; header row gives day columns in order (day index 0..n-1, not remapped to Mon-start).
+2. Hour label ("7am" → 7, "1pm" → 13, "12pm" → 12, "12am" → 0); also accept "07:00".
+3. Counts must be non-negative integers; every row must have the same column count; reject duplicate hours.
+4. Any failure rejects the whole file with the row/column that failed. Re-import replaces prior data.
+5. Tolerate BOM (sample starts with one), CRLF, blank lines, quoted fields.
+**Tests**: valid sample, BOM, bad hour label, non-numeric cell, ragged row, empty file.
 
 ## Ticket 4 — Shift CRUD
-**Goal**: manage the set of shifts staff can be assigned to.
-**Input**: start_time, end_time (HH:mm).
-**Output**: Shift list scoped to schedule.
-**Steps**:
-1. Backend DTO-validated CRUD under `/schedules/:id/shifts`. Validate end > start.
-2. Deleting a shift cascades: remove Assignments referencing it.
-3. Frontend: shift list with add/edit/remove, same inline-interaction pattern as Ticket 2.
+**Validation**: `HH:mm`, end > start. Overlapping shifts are allowed to exist.
+**Steps**: store actions; list UI with add/edit/remove (same pattern as Ticket 2). Removing a shift that has
+assignments needs a confirmation that says how many assignments will be removed.
 
-## Ticket 5 — Auto-schedule algorithm (core ticket — see business-analysis.md §1 for full reasoning)
-**Goal**: `POST /schedules/:id/auto-schedule` generates Assignments (`source: 'auto'`) and returns them.
-**Input**: none (uses schedule's existing staff, shifts, transactions). Optional query param `n`
-(demand constant, default 15).
-**Output**: list of created Assignments + a list of understaffed (day, shift) slots if any.
-**Algorithm** (implement exactly, in this order):
-1. `required_staff(day, hour) = ceil(max(txn_count, 1) / n)` if txn_count data exists for that
-   hour, else 0 (store closed that hour — no shift should cover hours with no data).
-2. For each (day, shift): `shift_headcount = max(required_staff(day, hour) for hour in shift range)`.
-3. Clear any existing `source: 'auto'` Assignments for this schedule before regenerating (manual
-   assignments are untouched).
-4. For each day in order, each shift in order, each of the `shift_headcount` open slots: pick the
-   staff member with the most `remaining_hours` (max_weekly_hours − already-assigned hours this
-   run) who (a) has `remaining_hours >= shift_length`, (b) has no overlapping Assignment that day.
-   Assign them. If no eligible staff remain, leave the slot unfilled and record it as understaffed.
-5. Return created Assignments + understaffed slot list to the frontend.
-**Edge cases**: zero staff → everything understaffed, return cleanly, no 500. Zero transactions →
-all required_staff = 0, no auto assignments, say so explicitly in the response.
+## Ticket 5 — Auto-schedule (core; reasoning in `docs/business-analysis.md` §1)
+**Pure function**: `autoSchedule({ staff, shifts, transactions, dayCount, n, keep }): { assignments, understaffed, unusedHours, notes }`
+where `keep` = existing manual assignments (untouched, counted against weekly hours and the 8h daily cap).
+**Algorithm** (implement exactly):
+1. `required(day, hour) = ceil(max(count, 1) / n)` when the hour has data, else 0.
+2. `headcount(day, shift) = max(required(day, hour))` over the hours the shift covers.
+3. Drop previous `source: 'auto'` assignments; keep manual ones.
+4. For each day in order, each shift in order, repeat `headcount - alreadyAssigned` times: among staff with
+   `remainingHours >= shiftLength`, no overlapping assignment, and day total + shiftLength <= `DAILY_CAP_HOURS` (8; a shift
+   longer than 8h is allowed only as that person's sole shift that day), pick the one with the lowest
+   utilization (`assignedHours / maxWeeklyHours`). Tie-break: more `remainingHours`, then name A-Z.
+   If none, record `{ day, shift, missing }` as understaffed. See `docs/final-decisions.vi.md`.
+5. Return assignments, understaffed slots, total unused capacity (hours), and notes.
+**Edge cases**: zero staff → everything understaffed, no throw. No transactions → no assignments and an
+explicit note. Same input always gives the same output (deterministic).
+**UI**: "Auto-schedule" button + N input; result banner: assigned count, understaffed slots (clickable to the
+cell), unused hours. Confirm before replacing existing auto assignments.
+**Tests**: sample CSV with 10 staff × 40h (all covered, ~48h unused); 5 staff × 40h (understaffed, never
+exceeds max hours); staff with max 20h gets at most 2 shifts; nobody has two shifts in one day; determinism.
 
-## Ticket 6 — Aggregated summary view
-**Goal**: table by day/hour showing transactions, staff-hours, txn/staff-hour, plus week totals.
-**Input**: schedule id.
-**Output**: `GET /schedules/:id/summary` → per-cell {day, hour, transactions, staff_hours, ratio},
-plus `{total_staff_hours, total_transactions, overall_ratio, average_cell_ratio}`.
-**Steps**:
-1. Backend: derive staff_hours(day,hour) by counting Assignments whose shift covers that hour.
-2. ratio = transactions / staff_hours, `null` (render "–") when staff_hours = 0.
-3. `average_cell_ratio` = mean of ratio over cells where staff_hours > 0 (exclude null cells).
-4. `overall_ratio` = total_transactions / total_staff_hours.
-5. Frontend: grid (day × hour), 3 stacked values per cell, color scale on ratio (use
-   design-taste-frontend skill at build time for exact treatment); totals row/footer.
-6. Must re-fetch/recompute live after any Assignment edit (Ticket 7).
+## Ticket 6 — Aggregated summary
+**Pure function**: `buildSummary(schedule): { cells[day][hour] = { transactions, staffHours, ratio | null }, totals }`.
+- `ratio = transactions / staffHours`, `null` (shown "–") when `staffHours = 0`.
+- `totals`: `totalStaffHours`, `totalTransactions`, `overallRatio` (= total txn / total staff-hours),
+  `averageCellRatio` (mean of ratios over cells with staff only). Show both ratios.
+- Also `requiredStaffHours` (sum of per-hour `required`, from `lib/demand.ts`) vs `totalStaffHours`, and the surplus
+  between them (sample week: 257 required vs 352 scheduled). Shown neutrally in the footer; per-cell surplus in the tooltip.
+**UI**: day × hour grid, three values per cell, colour scale on ratio, totals footer. Recomputes on every
+store change (derive with a selector, do not store).
+**Tests**: the PDF example (33/3, 48/3, 33/2 → day 114/8 = 14.3, mean of cells 14.5), zero-staff cell excluded
+from the mean, zero total staff hours.
 
-## Ticket 7 — Schedule view & direct editing (UX-critical ticket, heavily weighted in grading)
-**Goal**: readable weekly roster (day × shift × assigned staff), editable inline.
-**Input**: none (reads current Assignments).
-**Output**: assign/reassign/remove staff from a (day, shift) slot; summary (Ticket 6) updates live.
+## Ticket 7 — Roster view and direct editing (UX-critical)
+**Goal**: readable day × shift roster, edited in place.
 **Steps**:
-1. `PATCH /schedules/:id/assignments` — add/remove a single Assignment (staff_id, shift_id,
-   day_index). Backend computes and returns: (a) whether this pushes staff over max_weekly_hours,
-   (b) resulting understaffed/overstaffed flags for affected hours. Non-blocking — always succeeds,
-   warnings are informational.
-2. Frontend: grid or list view, day × shift cells show assigned staff as chips; click/select to
-   add, click chip to remove/reassign. No full-page forms for a single edit.
-3. Warnings surface inline (badge on staff chip if over max hours; badge on cell if understaffed)
-   — do not use blocking modals/alerts for these.
-4. Any edit triggers an immediate summary refresh (Ticket 6) — same page, no manual refresh step.
+1. Grid: columns = days, rows = shifts, cell = staff chips + "add" control. Understaffed cells show a badge
+   with "needs N, has M".
+2. Assign: click add, pick staff from a searchable list showing each person's `used/max` hours. Remove: chip "x".
+   Reassign: drag-and-drop chip is a stretch goal; the base flow is remove + add.
+3. Non-blocking warnings, shown inline: staff over max hours (chip + staff panel), understaffed hour, a second
+   shift pushing a person over the 8h daily cap. Never a blocking modal. Overstaffing is shown neutrally (surplus count),
+   not as a warning colour: MAX always produces some surplus.
+4. Staff side panel: per-person hours bar (used vs max).
+5. Summary (Ticket 6) updates immediately on the same page.
+**Pure helper**: `getWarnings(schedule)` returns the warning list consumed by the UI (unit-tested).
 
-## Ticket 8 — Shift management UI parity
-**Goal**: shift add/edit/remove (Ticket 4 backend) reflected cleanly in the schedule view.
-**Steps**:
-1. Editing a shift's time range updates `shift_headcount`/coverage display live (re-run summary,
-   do not require re-running auto-schedule).
-2. Removing a shift that has existing Assignments — confirm before cascading delete (user-visible
-   destructive action, needs explicit confirmation per data-safety norms).
+## Ticket 8 — Shift edits flow through
+Editing a shift's times or removing it updates the roster, `headcount` display, warnings and summary live,
+without re-running auto-schedule.
+
+## Ticket 9 — Demo data, README, AI note
+Load-sample-data button (seeds staff + imports the sample CSV so the demo needs no file picking), README with
+run steps, approach, assumptions, AI-usage note (see Self-Note section 11).
 
 ---
 
 ## Build order
-1 → 2 → 4 → 3 (CRUD scaffolding first; sample CSV only needed once schedule/shifts exist) → 6
-(summary can render zeros) → 7 (manual edit UI) → 5 (auto-schedule, writes into the same
-Assignment/summary machinery) → 8 (polish). Verify end-to-end with `sample_transaction_interview.csv`
-before calling any ticket done.
+Store/types (1) → 2 → 4 → 3 → 6 → 7 → 5 → 8 → 9. Verify end-to-end with `sample_transaction_interview.csv`
+before calling any ticket done. Stretch (only after core is solid): drag-and-drop, coverage view
+(required vs scheduled), CSV export, availability, roles.
