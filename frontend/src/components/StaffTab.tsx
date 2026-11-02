@@ -89,6 +89,7 @@ export function StaffTab({ schedule }: { schedule: Schedule }) {
           ),
         }}
         columns={[
+          { title: 'No.', width: 64, render: (_, __, index) => index + 1 },
           { title: 'Name', dataIndex: 'name' },
           { title: 'Max hours / week', dataIndex: 'maxWeeklyHours', width: 160, align: 'right' },
           {

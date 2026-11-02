@@ -1,6 +1,6 @@
 import { DndContext, type DragEndEvent, type DragOverEvent, DragOverlay, type DragStartEvent, PointerSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core'
 import { Alert, App, Button, Popconfirm } from 'antd'
-import { GripVertical, Wand2 } from 'lucide-react'
+import { GripVertical, Trash2, Wand2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { AutoScheduleResult } from '../lib/autoSchedule'
 import { type DragSource, previewDrop } from '../lib/roster'
@@ -92,6 +92,10 @@ export function RosterTab({ schedule }: { schedule: Schedule }) {
   const autoCount = schedule.assignments.filter((a) => a.source === 'auto').length
   const nameOf = (staffId: string) => schedule.staff.find((m) => m.id === staffId)?.name ?? 'Someone'
 
+  const clearAll = () => {
+    useScheduleStore.getState().clearAssignments(schedule.id)
+    message.success('Roster cleared. Staff, shifts and demand data are unchanged.')
+  }
   const run = () => setResult(useScheduleStore.getState().runAutoSchedule(schedule.id))
   const showResult = result !== null && result.assignments === schedule.assignments
 
@@ -133,22 +137,36 @@ export function RosterTab({ schedule }: { schedule: Schedule }) {
         <p className="m-0 text-neutral-500">
           Who works which shift. Use Auto-schedule for a first draft, then drag people between cells, or use Add in a cell.
         </p>
-        {autoCount > 0 ? (
+        <div className="flex shrink-0 gap-2">
           <Popconfirm
-            title="Run Auto-schedule again?"
-            description={`It replaces the ${autoCount} placements it made earlier. Anything you added or moved yourself (blue) is kept.`}
-            okText="Replace"
-            onConfirm={run}
+            title="Remove everyone from the roster?"
+            description={`All ${schedule.assignments.length} placements go, including the ones you added or moved yourself. Staff, shifts and demand data stay.`}
+            okText="Remove all"
+            okButtonProps={{ danger: true }}
+            disabled={!hasRoster}
+            onConfirm={clearAll}
           >
-            <Button type="primary" icon={<Wand2 size={14} />}>
-              Auto-schedule
+            <Button icon={<Trash2 size={14} />} disabled={!hasRoster}>
+              Remove all
             </Button>
           </Popconfirm>
-        ) : (
-          <Button type="primary" icon={<Wand2 size={14} />} onClick={run}>
-            Auto-schedule
-          </Button>
-        )}
+          {autoCount > 0 ? (
+            <Popconfirm
+              title="Run Auto-schedule again?"
+              description={`It replaces the ${autoCount} placements it made earlier. Anything you added or moved yourself (blue) is kept.`}
+              okText="Replace"
+              onConfirm={run}
+            >
+              <Button type="primary" icon={<Wand2 size={14} />}>
+                Auto-schedule
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button type="primary" icon={<Wand2 size={14} />} onClick={run}>
+              Auto-schedule
+            </Button>
+          )}
+        </div>
       </div>
 
       {showResult && <ResultBanner schedule={schedule} result={result} />}

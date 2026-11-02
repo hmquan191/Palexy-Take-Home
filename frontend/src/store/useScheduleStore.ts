@@ -33,6 +33,8 @@ type Actions = {
   /** Drag and drop: moves an existing placement, or adds a person, into a cell. Result says why a drop was refused. */
   dropOnSlot: (scheduleId: string, source: DragSource, target: DropTarget) => DropResult
   removeAssignment: (scheduleId: string, assignmentId: string) => void
+  /** Empties the whole roster (auto and manual placements). Staff, shifts and demand data stay. */
+  clearAssignments: (scheduleId: string) => void
   /** Replaces auto-generated assignments, keeps manual ones. Returns what happened, or null if the schedule is gone. */
   runAutoSchedule: (scheduleId: string) => AutoScheduleResult | null
 }
@@ -169,6 +171,8 @@ export const useScheduleStore = create<State & Actions>()(
 
       removeAssignment: (scheduleId, assignmentId) =>
         update(set, scheduleId, (s) => ({ assignments: s.assignments.filter((a) => a.id !== assignmentId) })),
+
+      clearAssignments: (scheduleId) => update(set, scheduleId, () => ({ assignments: [] })),
 
       runAutoSchedule: (scheduleId) => {
         const schedule = get().schedules.find((s) => s.id === scheduleId)

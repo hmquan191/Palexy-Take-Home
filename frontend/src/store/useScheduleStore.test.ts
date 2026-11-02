@@ -199,4 +199,21 @@ describe('useScheduleStore', () => {
     expect(again).toEqual({ ok: false, reason: 'duplicate' })
     expect(schedule().assignments).toHaveLength(44)
   })
+
+  it('clearAssignments empties the roster but keeps staff, shifts and demand', async () => {
+    const { useScheduleStore } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSampleSchedule()
+    store.runAutoSchedule(id)
+    const other = store.createSchedule('Other')!
+    store.addStaff(other, { name: 'An', maxWeeklyHours: 40 })
+    store.addAssignment(other, { staffId: useScheduleStore.getState().schedules[1].staff[0].id, shiftId: useScheduleStore.getState().schedules[1].shifts[0].id, dayIndex: 0 })
+
+    store.clearAssignments(id)
+    const [sample, untouched] = useScheduleStore.getState().schedules
+    expect(sample.assignments).toEqual([])
+    expect(sample.staff).toHaveLength(10)
+    expect(Object.keys(sample.transactions)).toHaveLength(112)
+    expect(untouched.assignments).toHaveLength(1)
+  })
 })
