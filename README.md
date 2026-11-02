@@ -21,6 +21,18 @@ Quick demo: on the schedules page click **Load sample week** (10 staff plus the 
 and click **Auto-schedule**. Or create an empty schedule and use the **Staff**, **Shifts** and **Demand data** tabs;
 the provided file is also at `sample_transaction_interview.csv`.
 
+### Sample reports in `samples/`
+
+Open a schedule (the sample week already has 10 staff), go to **Demand data**, click **Replace CSV**, then **Auto-schedule**.
+
+| File | What it shows |
+|---|---|
+| `sample_transaction_interview.csv` (repo root) | The provided week, Fri to Thu. Fully covered by the 10-person team. |
+| `samples/transactions_cafe_mon-sun_24h.csv` | Importer tolerance: a different title, Mon to Sun, `07:00` style hours in shuffled order, a trailing comma, Windows line endings, and no 15:00 row (treated as closed). Two peaks (lunch, dinner) and a busier weekend. At N = 15 a few weekend shifts come up short; set N to 30 and the week is covered with spare hours. |
+| `samples/transactions_mall_weekdays_busy.csv` | A 5-day week with a much busier store. With 10 staff, N = 15 leaves most shifts short (the shortfall list and amber cells appear, nobody goes over their hours); N = 30 is still short on a few shifts; N = 40 covers it. Shows how N and team size trade off. |
+
+Importing a 5-day file into a schedule that had 7 days drops any placements on the days that no longer exist.
+
 Data is saved in your browser's localStorage (per browser; cleared if you clear site data). If saved data is ever
 unreadable, the app starts empty and says so.
 
