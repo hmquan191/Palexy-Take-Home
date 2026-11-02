@@ -47,6 +47,7 @@ Cách đọc nhanh: mục 1 là bản chốt (đọc cái này là đủ), mục
 | 18 | Hiển thị dư người (overstaffing) | **Không dùng cảnh báo màu vàng/đỏ.** Hiện trung tính (số dư trong ô và tổng dư của tuần), vì MAX luôn gây dư và cảnh báo đầy bảng sẽ vô nghĩa |
 | 19 | Bảng tổng hợp | Đúng đề: mỗi ô có Transactions, Staff hours, Txn/staff-hour; tổng tuần gồm Total staff hours, Total transactions, Overall ratio, Average ratio (hiện **cả hai**, ô không có người hiện "–" và bị loại khỏi trung bình) |
 | 20 | Thêm vào bảng tổng hợp (rẻ, có lợi khi bảo vệ) | Một dòng "Giờ công theo nhu cầu mô hình" so với "Giờ công đã xếp" và phần chênh lệch |
+| 22 | Kéo-thả (dnd-kit) | Kéo chip giữa các ô, kéo tên từ danh sách nhân viên vào ca, thả chip lên danh sách để gỡ. Khi đang giữ chuột trên một ô, hiện trước headcount của ô và số giờ của người đó sau khi thả (cùng một hàm `applyDrop`/`previewDrop` với lúc thả thật). Chip đã kéo thành `manual`. Chỉ pointer/touch; bàn phím dùng menu Add. Không chặn, chỉ cảnh báo |
 | 21 | Chi phí | **Không build.** Chỉ dùng ví dụ chi phí làm ý nói khi phỏng vấn (xem mục 3.4) |
 
 ---
