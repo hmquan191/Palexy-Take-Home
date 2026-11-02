@@ -15,3 +15,20 @@ export const SAMPLE_STAFF = [
   { name: 'Đỗ Khoa', maxWeeklyHours: 32 },
   { name: 'Ngô Lan', maxWeeklyHours: 24 },
 ]
+
+export const SAMPLE_STAFF_POOL = [
+  'An', 'Bình', 'Công', 'Đức', 'Thọ',
+  'Chi', 'Dũng', 'Hà', 'Hải', 'Hoa',
+  'Huy', 'Khoa', 'Lan', 'Linh', 'Minh',
+  'Nam', 'Phúc', 'Quân', 'Trang', 'Yến',
+]
+export const SAMPLE_STAFF_HOURS = 40
+export const SAMPLE_STAFF_BATCH = 5
+
+/** The next names from the pool that are not already on the team, in pool order. */
+export function nextSampleStaff(existingNames: string[], count = SAMPLE_STAFF_BATCH): { name: string; maxWeeklyHours: number }[] {
+  const taken = new Set(existingNames.map((n) => n.trim().toLowerCase()))
+  return SAMPLE_STAFF_POOL.filter((name) => !taken.has(name.toLowerCase()))
+    .slice(0, count)
+    .map((name) => ({ name, maxWeeklyHours: SAMPLE_STAFF_HOURS }))
+}

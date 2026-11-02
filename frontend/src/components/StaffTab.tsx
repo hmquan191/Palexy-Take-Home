@@ -1,6 +1,7 @@
-import { Button, Empty, Form, Input, InputNumber, Modal, Popconfirm, Table } from 'antd'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { App, Button, Empty, Form, Input, InputNumber, Modal, Popconfirm, Table, Tooltip } from 'antd'
+import { Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { useState } from 'react'
+import { nextSampleStaff, SAMPLE_STAFF_BATCH, SAMPLE_STAFF_HOURS, SAMPLE_STAFF_POOL } from '../lib/sampleData'
 import { type StaffInput, useScheduleStore } from '../store/useScheduleStore'
 import type { Schedule, Staff } from '../types'
 
@@ -40,6 +41,7 @@ function StaffForm({ initial, onSubmit }: { initial: StaffInput | null; onSubmit
 
 export function StaffTab({ schedule }: { schedule: Schedule }) {
   const { addStaff, updateStaff, removeStaff } = useScheduleStore.getState()
+  const { message } = App.useApp()
   // null = closed, 'new' = adding, otherwise the staff member being edited
   const [editing, setEditing] = useState<Staff | 'new' | null>(null)
 
@@ -51,13 +53,26 @@ export function StaffTab({ schedule }: { schedule: Schedule }) {
     setEditing(null)
   }
 
+  const sampleBatch = nextSampleStaff(schedule.staff.map((m) => m.name))
+  const addSample = () => {
+    for (const person of sampleBatch) addStaff(schedule.id, person)
+    message.success(`Added ${sampleBatch.length} sample staff at ${SAMPLE_STAFF_HOURS}h each: ${sampleBatch.map((p) => p.name).join(', ')}.`)
+  }
+
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-4">
         <p className="text-neutral-500">Who can work this week, and the most hours each person may be scheduled.</p>
-        <Button type="primary" icon={<Plus size={14} />} onClick={() => setEditing('new')}>
-          Add staff
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Tooltip title={sampleBatch.length === 0 ? `All ${SAMPLE_STAFF_POOL.length} sample names are already on the team.` : `Adds the next ${Math.min(SAMPLE_STAFF_BATCH, sampleBatch.length)} from a list of ${SAMPLE_STAFF_POOL.length} sample names, ${SAMPLE_STAFF_HOURS}h each.`}>
+            <Button icon={<Users size={14} />} disabled={sampleBatch.length === 0} onClick={addSample}>
+              Add sample staff
+            </Button>
+          </Tooltip>
+          <Button type="primary" icon={<Plus size={14} />} onClick={() => setEditing('new')}>
+            Add staff
+          </Button>
+        </div>
       </div>
 
       <Table<Staff>
