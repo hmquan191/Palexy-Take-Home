@@ -1,5 +1,5 @@
 import { Alert, App, Button, Empty, Form, Input, Popconfirm, Table } from 'antd'
-import { CalendarDays, Trash2 } from 'lucide-react'
+import { CalendarDays, FlaskConical, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { consumeStorageReset, useScheduleStore } from '../store/useScheduleStore'
@@ -11,6 +11,7 @@ export function SchedulesPage() {
   const schedules = useScheduleStore((s) => s.schedules)
   const createSchedule = useScheduleStore((s) => s.createSchedule)
   const deleteSchedule = useScheduleStore((s) => s.deleteSchedule)
+  const createSampleSchedule = useScheduleStore((s) => s.createSampleSchedule)
   const { message } = App.useApp()
   const [form] = Form.useForm<{ name: string }>()
   const [showResetNotice, setShowResetNotice] = useState(consumeStorageReset)
@@ -55,6 +56,18 @@ export function SchedulesPage() {
         </Button>
       </Form>
 
+      <div className="mb-3 flex justify-end">
+        <Button
+          icon={<FlaskConical size={14} />}
+          onClick={() => {
+            createSampleSchedule()
+            message.success('Sample week added with 10 staff and the provided transaction report. Open it and click Auto-schedule.')
+          }}
+        >
+          Load sample week
+        </Button>
+      </div>
+
       <Table<Schedule>
         rowKey="id"
         dataSource={schedules}
@@ -64,7 +77,7 @@ export function SchedulesPage() {
           emptyText: (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="No schedules yet. Name one above to start planning a week."
+              description="No schedules yet. Name one above, or load the sample week to try the whole flow."
             />
           ),
         }}

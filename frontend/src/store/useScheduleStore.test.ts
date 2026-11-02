@@ -129,4 +129,55 @@ describe('useScheduleStore', () => {
     expect(s.transactions).toEqual({ '0-7': 5 })
     expect(s.assignments.map((a) => a.dayIndex)).toEqual([0])
   })
+
+  it('shifts: add, edit, and removing one also removes its assignments', async () => {
+    const { useScheduleStore } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSchedule('S')!
+    store.addShift(id, { start: '09:00', end: '13:00' })
+    const shifts = () => useScheduleStore.getState().schedules[0].shifts
+    expect(shifts()).toHaveLength(3)
+
+    const added = shifts()[2]
+    store.updateShift(id, added.id, { start: '10:00', end: '14:00' })
+    expect(shifts()[2]).toMatchObject({ start: '10:00', end: '14:00' })
+
+    store.addStaff(id, { name: 'An', maxWeeklyHours: 40 })
+    const staffId = useScheduleStore.getState().schedules[0].staff[0].id
+    store.addAssignment(id, { staffId, shiftId: added.id, dayIndex: 0 })
+    store.removeShift(id, added.id)
+    expect(shifts()).toHaveLength(2)
+    expect(useScheduleStore.getState().schedules[0].assignments).toEqual([])
+  })
+
+  it('assignments: manual source, no duplicates, removable', async () => {
+    const { useScheduleStore } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSchedule('S')!
+    store.addStaff(id, { name: 'An', maxWeeklyHours: 40 })
+    const schedule = () => useScheduleStore.getState().schedules[0]
+    const slot = { staffId: schedule().staff[0].id, shiftId: schedule().shifts[0].id, dayIndex: 2 }
+    store.addAssignment(id, slot)
+    store.addAssignment(id, slot)
+    expect(schedule().assignments).toHaveLength(1)
+    expect(schedule().assignments[0].source).toBe('manual')
+    store.removeAssignment(id, schedule().assignments[0].id)
+    expect(schedule().assignments).toEqual([])
+  })
+
+  it('sample schedule is ready to auto-schedule, and running it fills the roster', async () => {
+    const { useScheduleStore } = await loadStore()
+    const id = useScheduleStore.getState().createSampleSchedule()
+    const before = useScheduleStore.getState().schedules[0]
+    expect(before.staff).toHaveLength(10)
+    expect(before.dayLabels).toHaveLength(7)
+    expect(before.assignments).toEqual([])
+
+    const result = useScheduleStore.getState().runAutoSchedule(id)!
+    expect(result.understaffed).toEqual([])
+    const after = useScheduleStore.getState().schedules[0]
+    expect(after.assignments).toBe(result.assignments)
+    expect(after.assignments).toHaveLength(44)
+    expect(useScheduleStore.getState().runAutoSchedule('missing')).toBeNull()
+  })
 })

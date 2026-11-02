@@ -2,7 +2,11 @@ import { Button, InputNumber, Result, Tabs, Tooltip } from 'antd'
 import { ArrowLeft, Info } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { DemandTab } from '../components/DemandTab'
+import { RosterTab } from '../components/RosterTab'
+import { ShiftsTab } from '../components/ShiftsTab'
 import { StaffTab } from '../components/StaffTab'
+import { StatsStrip } from '../components/StatsStrip'
+import { SummaryTab } from '../components/SummaryTab'
 import { useScheduleStore } from '../store/useScheduleStore'
 
 const MAX_N = 1000
@@ -28,7 +32,7 @@ export function SchedulePage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
+    <main className="mx-auto max-w-6xl px-6 py-10">
       <Link to="/" className="mb-4 inline-flex items-center gap-1 text-neutral-500">
         <ArrowLeft size={14} aria-hidden /> Schedules
       </Link>
@@ -51,9 +55,14 @@ export function SchedulePage() {
         </Tooltip>
       </div>
 
+      <StatsStrip schedule={schedule} />
+
       <Tabs
         items={[
+          { key: 'roster', label: 'Roster', children: <RosterTab schedule={schedule} /> },
+          { key: 'summary', label: 'Summary', children: <SummaryTab schedule={schedule} /> },
           { key: 'staff', label: `Staff (${schedule.staff.length})`, children: <StaffTab schedule={schedule} /> },
+          { key: 'shifts', label: `Shifts (${schedule.shifts.length})`, children: <ShiftsTab schedule={schedule} /> },
           { key: 'demand', label: 'Demand data', children: <DemandTab schedule={schedule} /> },
         ]}
       />

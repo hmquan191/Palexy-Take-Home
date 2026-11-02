@@ -13,10 +13,17 @@
 - Ticket 3: tolerant CSV importer (`lib/parseTransactionCsv.ts`: week label optional, hours in any order, am/pm or
   24h labels, BOM/CRLF/quotes/trailing commas, rejects whole file with line + column on bad input), demand tab with
   preview table and totals; verified against `sample_transaction_interview.csv`
-- 27 unit tests (store + parser)
+- Ticket 4/8: shifts add/edit/remove on the Shifts tab (hour-aligned, cascade-removes assignments); edits flow into
+  roster, warnings and summary live
+- Ticket 6: Summary tab (day x hour grid, day totals, week totals incl. overall and average ratio, required vs scheduled)
+- Ticket 7: Roster tab (day x shift grid, add via dropdown sorted by utilization, remove chips, inline warnings,
+  hours-this-week bars, always-visible stats strip)
+- Ticket 5: auto-schedule (`lib/autoSchedule.ts`, MAX per shift, lowest utilization first, 8h daily cap, keeps manual)
+- Ticket 9: Load sample week button, README with approach, assumptions and AI-usage note
+- 47 unit tests (store, parser, demand model, auto-schedule, summary, warnings)
 
 ## Next
-Ticket 4 (shift CRUD), then 6, 7, 5, 8, 9 (see specs/requirements.md).
+Full flow is built. Remaining: a manual browser pass, polish, and stretch goals (drag-and-drop, coverage view, CSV export).
 
 ## Not verified
-UI was never opened in a browser by the assistant. Checked: typecheck, lint, build, 27 unit tests, and a server-side render of the staff and demand tabs with the real sample file.
+The assistant never opened the UI in a browser. Checked: typecheck, lint, build, 47 unit tests, and server-side renders of every tab with the real sample data (roster before/after auto-schedule, an edit producing a warning). You tested staff entry and CSV import by hand; the roster, summary, shifts and auto-schedule screens still need your eyes.
