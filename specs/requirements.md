@@ -107,7 +107,10 @@ from the mean, zero total staff hours.
 1. Grid: columns = days, rows = shifts, cell = staff chips + "add" control. Understaffed cells show a badge
    with "needs N, has M".
 2. Assign: click add, pick staff from a searchable list showing each person's `used/max` hours. Remove: chip "x".
-   Reassign: drag-and-drop chip is a stretch goal; the base flow is remove + add.
+   Reassign: drag a chip to another cell (dnd-kit, pointer and touch). Also drag a name from the staff list onto a
+   shift, and drop a chip on the staff list to remove it. While held over a cell the UI previews the cell headcount and
+   the person's hours after the drop; `applyDrop`/`previewDrop` in `lib/roster.ts` are the single source of truth for
+   both the preview and the commit. A moved placement becomes `manual`. Keyboard route: the Add menu.
 3. Non-blocking warnings, shown inline: staff over max hours (chip + staff panel), understaffed hour, a second
    shift pushing a person over the 8h daily cap. Never a blocking modal. Overstaffing is shown neutrally (surplus count),
    not as a warning colour: MAX always produces some surplus.
@@ -127,5 +130,5 @@ run steps, approach, assumptions, AI-usage note (see Self-Note section 11).
 
 ## Build order
 Store/types (1) → 2 → 4 → 3 → 6 → 7 → 5 → 8 → 9. Verify end-to-end with `sample_transaction_interview.csv`
-before calling any ticket done. Stretch (only after core is solid): drag-and-drop, coverage view
+before calling any ticket done. Drag-and-drop is built. Stretch (not built): coverage view
 (required vs scheduled), CSV export, availability, roles.

@@ -109,4 +109,6 @@ Authentication, multi-user, deployment. Roles/skills, availability/ngày nghỉ,
 
 Xem `specs/requirements.md` cho bảng ticket sinh ra từ các quyết định này.
 
+> Lưu ý: bản dịch này phản ánh phân tích đầu tiên. Quy tắc "người còn nhiều giờ nhất trước" ở 1.3/1.4 đã được thay bằng "utilization thấp nhất trước", và kéo-thả đã được build. Xem `docs/final-decisions.vi.md`.
+>
 > Lưu ý: mục 4 ở trên (ánh xạ ngày) và quy tắc fairness ở 1.3 đang được xem xét lại trong `docs/final-decisions.vi.md` sau khi đối chiếu với `docs/staff-scheduling-problem-analysis.md`.

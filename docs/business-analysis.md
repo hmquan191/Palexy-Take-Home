@@ -1,5 +1,8 @@
 # Business Analysis — Staff Scheduling System
 
+> **Status:** first-pass analysis. Where it differs from `docs/final-decisions.vi.md`, the final decisions win
+> (fairness is lowest utilization, not most remaining hours; 8h daily cap; N editable; localStorage; drag and drop built).
+
 Purpose: translate the PDF spec into concrete product decisions. The PDF is deliberately open-ended
 in places ("make a reasonable decision, state your assumption"). This doc lists every open gap found,
 a recommendation, and marks which ones need YOUR call before coding starts (marked **DECISION NEEDED**).
@@ -43,8 +46,9 @@ Three candidate rules:
 ### 1.3 Assignment: filling shifts with specific staff under max-hours constraint
 - Greedy, deterministic, explainable algorithm (not an ILP solver — out of scope for 4-6h):
   1. Compute required headcount per (day, shift) via 1.2.
-  2. Sort staff by **remaining available hours descending** (most slack first) each time a shift slot
-     needs filling — this naturally spreads hours instead of exhausting one person first.
+  2. Pick, for each open slot, the eligible person with the **lowest utilization** (assigned / max hours);
+     ties go to more remaining hours, then name. (First draft said "most remaining hours"; replaced because it
+     starves part-timers. See final-decisions.vi.md.)
   3. For each (day, shift) needing N people, assign the N staff with most remaining hours who (a)
      have ≥ shift-length hours remaining, (b) don't overlap another of their assignments and keep their day total within the 8h daily cap (adjacent shifts 07-15 + 15-23 don't overlap but would be a 16h day; a shift longer than 8h is allowed only as the sole shift that day. Manual edits may still exceed it, with a warning). Fairness uses lowest utilization (assigned/max), not most remaining hours; see final-decisions.vi.md.
   4. If fewer eligible staff than required headcount, assign what's available and flag the slot
@@ -58,8 +62,8 @@ Spec: "nobody scheduled for zero or near-zero hours while others are maxed out..
 'enough hours' means and apply it consistently."
 
 - **Recommendation**: fairness = **utilization ratio** (assigned_hours / max_hours) should be
-  roughly balanced across staff, not absolute hours. The greedy "most remaining hours first" rule in
-  1.3 already approximates this as a side effect, which keeps the algorithm simple and explainable.
+  roughly balanced across staff, not absolute hours. The greedy "lowest utilization first" rule in
+  1.3 implements this directly, which keeps the algorithm simple and explainable.
 - **DECISION NEEDED**: do we need a hard floor (e.g. "everyone must reach ≥50% of their max before
   anyone reaches 100%")? Recommend: no hard floor for v1 — greedy balancing is good enough and a hard
   floor adds real complexity (reshuffling logic) for a four-hour budget. State this trade-off in README.
@@ -114,7 +118,7 @@ hourly data).
   when staffing is uneven. No decision needed, just don't collapse them into one number.
 - Layout (grid vs stacked vs separate grids) — spec says "your choice." Recommend: single grid,
   3 stacked mini-values per cell (txn / staff-hrs / ratio), color-coded by ratio (defer exact palette
-  to design-taste-frontend skill at build time).
+  to the taste-skill review at build time).
 
 ---
 
@@ -131,8 +135,8 @@ understaffed. Recommend:
 ---
 
 ## 5. Explicitly out of scope (per PDF Section 5)
-Auth, multi-user, deployment. Roles/skills, availability/days-off, drag-and-drop, CSV export are
-**stretch goals only** — build after the core flow is solid, not before.
+Auth, multi-user, deployment. Roles/skills, availability/days-off and CSV export are
+**stretch goals only** (not built). Drag-and-drop was also a stretch goal and has since been built.
 
 ---
 
