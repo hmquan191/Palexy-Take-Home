@@ -79,16 +79,22 @@ places), because shifts are whole blocks. That ~27% surplus is the price of neve
 
 ## AI-usage note
 
-I used Claude Code throughout. Draft written by the assistant from the conversation; edit it so it reads in your
-own voice and matches what you actually did.
+I used Claude in three roles; the step-by-step account is in [docs/ai-process.md](docs/ai-process.md).
 
-- **Delegated:** reading the brief and listing its open questions, proposing options, scaffolding the project,
-  writing the code and tests, and translating the analysis.
-- **Checked by me:** the decisions that shape behaviour (N adjustable and defaulting to 15; keeping CSV columns in
-  file order; the 8h daily cap), the staff entry and CSV import flows in the browser, and the Friday example worked by
-  hand against the sample file (5 morning + 3 afternoon people, 452 transactions).
-- **Where I overrode or corrected it:** I moved from a NestJS + Supabase backend to client-side storage so a reviewer
-  can run it with two commands; the assistant first suggested a fairness rule based on "most hours remaining", which
-  we replaced with lowest utilization after comparing two analyses; it initially missed that two 8h shifts back to
-  back make a 16h day; it guessed a wrong skill name that I corrected with the right repository; and I kept CSV
-  columns in file order when it proposed reading weekday names instead.
+- **Understanding the brief.** I had Claude Opus explain the assignment and its open questions, then asked ChatGPT to
+  challenge that reading. The main question was how many people a fixed 8-hour shift needs. Averaging the hourly demand
+  costs less, because the manager pays for fewer idle hours, but it leaves the busiest hour short-staffed and that hits
+  customers directly. Taking the busiest hour (MAX) never leaves a peak short, at the price of idle time in quiet hours.
+  I chose MAX and show that surplus openly in the summary. Letting the manager build shorter shifts can reduce it later.
+- **Setting the rules for the assistant.** I wrote the `.claude/` folder (the ponytail skill and agents) and `CLAUDE.md`
+  myself, so the assistant kept to the same stack, branching and code-quality rules throughout.
+- **Building.** I delegated scaffolding, code, unit tests and drafts of the docs and this README. I made the product calls
+  (client-side storage instead of a backend, N editable and defaulting to 15, CSV days kept in file order, the 8-hour daily
+  cap, fairness by utilization), tried staff entry and CSV import in the browser, and checked the Friday example by hand
+  against the sample file.
+- **Where I overrode or corrected it.** It first proposed a NestJS + Supabase backend and I moved to localStorage so a
+  reviewer can run the app with two commands. Its first fairness rule (most hours remaining) starved part-timers, so we
+  switched to lowest utilization after I compared two analyses. It missed that two 8-hour shifts back to back make a
+  16-hour day. It guessed the wrong name for a skill until I gave it the right repository.
+- **Not verified by the assistant.** It never opened the UI in a browser, so drag and drop and the roster screens were
+  checked by unit tests and server-side rendering only.
