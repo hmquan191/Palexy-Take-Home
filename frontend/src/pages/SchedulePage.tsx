@@ -1,11 +1,16 @@
-import { Button, Result } from 'antd'
-import { ArrowLeft } from 'lucide-react'
+import { Button, InputNumber, Result, Tabs, Tooltip } from 'antd'
+import { ArrowLeft, Info } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
+import { DemandTab } from '../components/DemandTab'
+import { StaffTab } from '../components/StaffTab'
 import { useScheduleStore } from '../store/useScheduleStore'
+
+const MAX_N = 1000
 
 export function SchedulePage() {
   const { id } = useParams()
   const schedule = useScheduleStore((s) => s.schedules.find((x) => x.id === id))
+  const setNPerStaff = useScheduleStore((s) => s.setNPerStaff)
 
   if (!schedule) {
     return (
@@ -27,11 +32,31 @@ export function SchedulePage() {
       <Link to="/" className="mb-4 inline-flex items-center gap-1 text-neutral-500">
         <ArrowLeft size={14} aria-hidden /> Schedules
       </Link>
-      <h1 className="mb-2 text-xl font-semibold text-neutral-900">{schedule.name}</h1>
-      <p className="text-neutral-500">
-        {schedule.shifts.length} shifts, {schedule.staff.length} staff. Staff, shifts, demand upload and the roster
-        arrive in the next tickets.
-      </p>
+      <h1 className="mb-4 text-xl font-semibold text-neutral-900">{schedule.name}</h1>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2">
+        <span>One staff member for every</span>
+        <InputNumber
+          aria-label="Transactions per staff member per hour (N)"
+          min={1}
+          max={MAX_N}
+          precision={0}
+          value={schedule.nPerStaff}
+          onChange={(n) => n !== null && setNPerStaff(schedule.id, n)}
+          className="w-20"
+        />
+        <span>transactions per hour (at least one while open)</span>
+        <Tooltip title="Higher means fewer staff are required per hour. Changing it does not move anyone on the roster; run Auto-schedule again to apply it.">
+          <Info size={14} className="text-neutral-400" aria-label="About this setting" />
+        </Tooltip>
+      </div>
+
+      <Tabs
+        items={[
+          { key: 'staff', label: `Staff (${schedule.staff.length})`, children: <StaffTab schedule={schedule} /> },
+          { key: 'demand', label: 'Demand data', children: <DemandTab schedule={schedule} /> },
+        ]}
+      />
     </main>
   )
 }

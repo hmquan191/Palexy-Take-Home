@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, type PersistStorage } from 'zustand/middleware'
-import type { Schedule } from '../types'
+import type { ParsedDemand } from '../lib/parseTransactionCsv'
+import type { Schedule, Staff } from '../types'
 
 export const STORAGE_KEY = 'staff-scheduling-v1'
 export const DEFAULT_N_PER_STAFF = 15
@@ -11,9 +12,15 @@ const DEFAULT_SHIFTS = [
 ]
 
 type State = { schedules: Schedule[] }
+export type StaffInput = Pick<Staff, 'name' | 'maxWeeklyHours'>
 type Actions = {
   createSchedule: (name: string) => string | null
   deleteSchedule: (id: string) => void
+  setNPerStaff: (scheduleId: string, n: number) => void
+  addStaff: (scheduleId: string, input: StaffInput) => void
+  updateStaff: (scheduleId: string, staffId: string, input: StaffInput) => void
+  removeStaff: (scheduleId: string, staffId: string) => void
+  importTransactions: (scheduleId: string, demand: Pick<ParsedDemand, 'dayLabels' | 'transactions'>) => void
 }
 
 let storageWasReset = false
@@ -41,6 +48,14 @@ const storage: PersistStorage<State> = {
   removeItem: (name) => localStorage.removeItem(name),
 }
 
+type Set = (fn: (state: State) => Partial<State>) => void
+
+function update(set: Set, scheduleId: string, patch: (schedule: Schedule) => Partial<Schedule>) {
+  set((state) => ({
+    schedules: state.schedules.map((s) => (s.id === scheduleId ? { ...s, ...patch(s) } : s)),
+  }))
+}
+
 export const useScheduleStore = create<State & Actions>()(
   persist(
     (set) => ({
@@ -66,6 +81,35 @@ export const useScheduleStore = create<State & Actions>()(
 
       deleteSchedule: (id) =>
         set((state) => ({ schedules: state.schedules.filter((s) => s.id !== id) })),
+
+      setNPerStaff: (scheduleId, n) => {
+        if (Number.isInteger(n) && n >= 1) update(set, scheduleId, () => ({ nPerStaff: n }))
+      },
+
+      addStaff: (scheduleId, input) =>
+        update(set, scheduleId, (s) => ({
+          staff: [...s.staff, { id: crypto.randomUUID(), name: input.name.trim(), maxWeeklyHours: input.maxWeeklyHours }],
+        })),
+
+      updateStaff: (scheduleId, staffId, input) =>
+        update(set, scheduleId, (s) => ({
+          staff: s.staff.map((m) =>
+            m.id === staffId ? { ...m, name: input.name.trim(), maxWeeklyHours: input.maxWeeklyHours } : m,
+          ),
+        })),
+
+      removeStaff: (scheduleId, staffId) =>
+        update(set, scheduleId, (s) => ({
+          staff: s.staff.filter((m) => m.id !== staffId),
+          assignments: s.assignments.filter((a) => a.staffId !== staffId),
+        })),
+
+      importTransactions: (scheduleId, { dayLabels, transactions }) =>
+        update(set, scheduleId, (s) => ({
+          dayLabels,
+          transactions,
+          assignments: s.assignments.filter((a) => a.dayIndex < dayLabels.length),
+        })),
     }),
     {
       name: STORAGE_KEY,

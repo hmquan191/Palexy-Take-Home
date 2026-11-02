@@ -38,7 +38,8 @@ type Assignment = { id: string; staffId: string; shiftId: string; dayIndex: numb
 ---
 
 ## Ticket 1 — Store + Schedule CRUD
-**Goal**: create/list/select/delete schedules (top-level container).
+**Goal**: create/list/select/delete schedules (top-level container). Creating a schedule stays on the list (no
+auto-navigation). N (`nPerStaff`, default 15) is editable per schedule in the workspace header.
 **Steps**:
 1. Create the store and types above; actions: `createSchedule`, `deleteSchedule`, `selectSchedule`.
 2. `createSchedule` seeds the two default shifts.

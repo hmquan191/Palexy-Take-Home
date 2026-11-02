@@ -1,7 +1,7 @@
-import { Alert, Button, Empty, Form, Input, Popconfirm, Table } from 'antd'
+import { Alert, App, Button, Empty, Form, Input, Popconfirm, Table } from 'antd'
 import { CalendarDays, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { consumeStorageReset, useScheduleStore } from '../store/useScheduleStore'
 import type { Schedule } from '../types'
 
@@ -11,13 +11,14 @@ export function SchedulesPage() {
   const schedules = useScheduleStore((s) => s.schedules)
   const createSchedule = useScheduleStore((s) => s.createSchedule)
   const deleteSchedule = useScheduleStore((s) => s.deleteSchedule)
-  const navigate = useNavigate()
+  const { message } = App.useApp()
   const [form] = Form.useForm<{ name: string }>()
   const [showResetNotice, setShowResetNotice] = useState(consumeStorageReset)
 
   const onCreate = ({ name }: { name: string }) => {
-    const id = createSchedule(name)
-    if (id) navigate(`/schedules/${id}`)
+    if (!createSchedule(name)) return
+    form.resetFields()
+    message.success(`Schedule "${name.trim()}" created. Open it from the list when you are ready.`)
   }
 
   return (

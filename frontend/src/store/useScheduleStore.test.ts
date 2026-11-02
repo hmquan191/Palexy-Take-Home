@@ -70,4 +70,63 @@ describe('useScheduleStore', () => {
     expect(useScheduleStore.getState().schedules).toEqual([])
     expect(consumeStorageReset()).toBe(true)
   })
+
+  it('manages staff and trims names', async () => {
+    const { useScheduleStore } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSchedule('S')!
+    store.addStaff(id, { name: '  An  ', maxWeeklyHours: 40 })
+    store.addStaff(id, { name: 'Binh', maxWeeklyHours: 20 })
+    const [an] = useScheduleStore.getState().schedules[0].staff
+    expect(an.name).toBe('An')
+
+    store.updateStaff(id, an.id, { name: 'An Nguyen', maxWeeklyHours: 36 })
+    expect(useScheduleStore.getState().schedules[0].staff[0]).toMatchObject({ name: 'An Nguyen', maxWeeklyHours: 36 })
+
+    store.removeStaff(id, an.id)
+    expect(useScheduleStore.getState().schedules[0].staff.map((m) => m.name)).toEqual(['Binh'])
+  })
+
+  it('removing staff also removes their assignments', async () => {
+    const { useScheduleStore } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSchedule('S')!
+    store.addStaff(id, { name: 'An', maxWeeklyHours: 40 })
+    const staffId = useScheduleStore.getState().schedules[0].staff[0].id
+    useScheduleStore.setState((state) => ({
+      schedules: state.schedules.map((s) => ({
+        ...s,
+        assignments: [{ id: 'a1', staffId, shiftId: 's', dayIndex: 0, source: 'manual' as const }],
+      })),
+    }))
+    store.removeStaff(id, staffId)
+    expect(useScheduleStore.getState().schedules[0].assignments).toEqual([])
+  })
+
+  it('setNPerStaff accepts whole numbers >= 1 only', async () => {
+    const { useScheduleStore } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSchedule('S')!
+    store.setNPerStaff(id, 20)
+    expect(useScheduleStore.getState().schedules[0].nPerStaff).toBe(20)
+    for (const bad of [0, -5, 2.5, Number.NaN]) store.setNPerStaff(id, bad)
+    expect(useScheduleStore.getState().schedules[0].nPerStaff).toBe(20)
+  })
+
+  it('importing demand replaces data and drops assignments on days that no longer exist', async () => {
+    const { useScheduleStore } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSchedule('S')!
+    useScheduleStore.setState((state) => ({
+      schedules: state.schedules.map((s) => ({
+        ...s,
+        assignments: [0, 6].map((d) => ({ id: `a${d}`, staffId: 'x', shiftId: 'y', dayIndex: d, source: 'auto' as const })),
+      })),
+    }))
+    store.importTransactions(id, { dayLabels: ['Mon', 'Tue'], transactions: { '0-7': 5 } })
+    const s = useScheduleStore.getState().schedules[0]
+    expect(s.dayLabels).toEqual(['Mon', 'Tue'])
+    expect(s.transactions).toEqual({ '0-7': 5 })
+    expect(s.assignments.map((a) => a.dayIndex)).toEqual([0])
+  })
 })
