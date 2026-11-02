@@ -46,7 +46,7 @@ Three candidate rules:
   2. Sort staff by **remaining available hours descending** (most slack first) each time a shift slot
      needs filling — this naturally spreads hours instead of exhausting one person first.
   3. For each (day, shift) needing N people, assign the N staff with most remaining hours who (a)
-     have ≥ shift-length hours remaining, (b) aren't already assigned an overlapping/same shift that day.
+     have ≥ shift-length hours remaining, (b) don't overlap another of their assignments and keep their day total within the 8h daily cap (adjacent shifts 07-15 + 15-23 don't overlap but would be a 16h day; a shift longer than 8h is allowed only as the sole shift that day. Manual edits may still exceed it, with a warning). Fairness uses lowest utilization (assigned/max), not most remaining hours; see final-decisions.vi.md.
   4. If fewer eligible staff than required headcount, assign what's available and flag the slot
      **understaffed** in the result (don't fail, don't silently drop — Section 4 explicitly asks for this).
 - Shift length not evenly dividing weekly max hours (e.g. 8h shifts, someone has 20h max) is expected
@@ -74,13 +74,14 @@ schedule at a time. Recommend: support **multiple schedules**, user can create/s
 (cheap to build if using proper DB keys from the start, and makes demoing "create a schedule" natural
 rather than there being exactly one implicit schedule).
 
-### 2.2 Persistence — **DECISION NEEDED**
-Claude.md says Supabase; PDF says "in-memory, local storage, or a database — your call," auth is
-explicitly out of scope. Recommend: **Supabase (Postgres) via NestJS**, no auth/RLS — single implicit
-tenant. Reasoning: matches the stack already declared in Claude.md, gives real persistence for the
-live demo/on-site walkthrough, and the schema (schedules → staff, shifts, transactions, assignments)
-is relational and trivial in Postgres. If you'd rather minimize setup friction for the interview,
-in-memory + JSON export is the alternative — flag now if you want that instead.
+### 2.2 Persistence — DECIDED: client-side only (Zustand + localStorage)
+PDF allows "in-memory, local storage, or a database" and a fully client-side app. Originally
+Supabase via NestJS was chosen; replaced because graders must run it with one or two commands and no
+account setup. localStorage (not sessionStorage, which dies with the tab) keeps data across reloads for
+the demo. One Zustand store with `persist` is the single place all screens read/write. Business logic
+(CSV parse, auto-schedule, summary) are pure functions in `frontend/src/lib/`. Trade-off to state in
+the README: data is per-browser, no sharing between users, ~5 MB storage limit (ample for one week of
+hourly data).
 
 ### 2.3 Shift model
 - Shift = {start, end} only, scoped to a schedule, not per-day (matches spec: "a shift is defined by
@@ -138,7 +139,7 @@ Auth, multi-user, deployment. Roles/skills, availability/days-off, drag-and-drop
 ## 6. Decisions — CONFIRMED
 
 1. **N = 15**, user-adjustable in UI/config.
-2. **Persistence: Supabase/Postgres**, no auth/RLS.
+2. **Persistence: Zustand + localStorage, no backend** (supersedes the earlier Supabase choice).
 3. **Multiple schedules** supported (create/switch).
 4. **CSV day mapping: direct column order** → Day1..7, no forced Mon-start.
 5. **Fairness: greedy balance only**, no hard utilization floor (default, unchallenged).

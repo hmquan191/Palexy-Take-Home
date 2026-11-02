@@ -9,23 +9,18 @@ breakdown.
 
 ## Stack
 
-- **Backend**: NestJS + Supabase (Postgres)
-- **Frontend**: React + Vite + Tailwind CSS + Ant Design + Lucide-react
+Fully client-side: React + Vite + TypeScript + Tailwind CSS + Ant Design + Lucide-react, with state in a
+Zustand store persisted to localStorage. No backend, no database, no accounts.
 
 ## Setup
 
 ```bash
-# backend
-cd backend
-cp .env.example .env   # fill in SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
-npm install
-npm run start:dev      # http://localhost:3000/api
-
-# frontend (separate terminal)
 cd frontend
 npm install
 npm run dev             # http://localhost:5173
 ```
+
+Data is stored in your browser's localStorage (per browser, cleared if you clear site data).
 
 ## Status
 

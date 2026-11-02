@@ -21,21 +21,15 @@
 - Applicable, visible for users to make actions
   **For any requirements to fix and avoid AI slop UI:** use taste-skill skill to evaluate and do next steps.
 
-## Backend implementation
+## Architecture (fully client-side, no backend)
 
-**Tech stack:** Nestjs, Supabase
-**Error Handling & Logging**
+**Decision:** no backend, no database. Demo version runs with `npm install && npm run dev` only.
 
-- Centralized Error Handling: Use Global Exception Handler, no try-catch anywhere
-- Proper HTTP Status Code: 400, 401, 404, 500,...
-- Structured Logging in Nestjs
-
-**Data Validation** with DTO to avoid SQL injection, XSS
-**Performance and DB:**
-
-- Pagination and limiting
-- Mindful about N+1 Query problem
-- Database transaction for actions, follow ACID
+- **State:** one global Zustand store (`frontend/src/store/`) with the `persist` middleware writing to **localStorage**. Never sessionStorage (data is lost when the tab closes). Screens read/write only through the store, never touch `localStorage` directly.
+- **Business logic:** pure TypeScript functions in `frontend/src/lib/` (CSV parser, demand model, auto-schedule, summary aggregation). No React or store imports inside them, so they are unit-testable and explainable live.
+- **Validation:** validate at the boundaries only: CSV import and form inputs. Reject bad CSV with a row/column-level message. Sanitize user text before rendering (React escapes by default; never use `dangerouslySetInnerHTML`).
+- **Errors:** one error boundary and one notification helper (AntD `message`/`notification`), no scattered try/catch. Messages say what happened and the next step.
+- **Persistence safety:** store has a `version` and a `migrate`; if stored data fails to parse, reset to seed data and tell the user.
 
 **For any requirements to start implementing:** use ponytail skill to start
 
