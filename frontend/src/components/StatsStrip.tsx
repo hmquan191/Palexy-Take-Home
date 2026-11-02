@@ -6,7 +6,7 @@ import type { Schedule } from '../types'
 
 function Item({ label, value, tone = 'normal' }: { label: string; value: string; tone?: 'normal' | 'warn' }) {
   return (
-    <div className="min-w-[120px]">
+    <div className="min-w-30">
       <div className="text-xs text-neutral-500">{label}</div>
       <div className={`text-base font-semibold tabular-nums ${tone === 'warn' ? 'text-amber-700' : 'text-neutral-900'}`}>{value}</div>
     </div>

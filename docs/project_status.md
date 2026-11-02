@@ -20,10 +20,13 @@
   hours-this-week bars, always-visible stats strip)
 - Ticket 5: auto-schedule (`lib/autoSchedule.ts`, MAX per shift, lowest utilization first, 8h daily cap, keeps manual)
 - Ticket 9: Load sample week button, README with approach, assumptions and AI-usage note
-- 47 unit tests (store, parser, demand model, auto-schedule, summary, warnings)
+- Roster drag and drop (dnd-kit, branch `feature/roster-drag-and-drop`): move chips between cells, drag names from the
+  staff list, drop a chip on the list to remove it. `lib/roster.ts` (`applyDrop`, `previewDrop`) is the single source of
+  truth for the committed result and the live preview (headcount and hours after the drop)
+- 61 unit tests (store, parser, demand model, auto-schedule, summary, warnings, drag math)
 
 ## Next
-Full flow is built. Remaining: a manual browser pass, polish, and stretch goals (drag-and-drop, coverage view, CSV export).
+Full flow is built. Remaining: a manual browser pass (especially drag and drop), polish, and stretch goals (coverage view, CSV export).
 
 ## Not verified
-The assistant never opened the UI in a browser. Checked: typecheck, lint, build, 47 unit tests, and server-side renders of every tab with the real sample data (roster before/after auto-schedule, an edit producing a warning). You tested staff entry and CSV import by hand; the roster, summary, shifts and auto-schedule screens still need your eyes.
+The assistant never opened the UI in a browser, and drag and drop in particular is untested in a real browser (pointer events); the math behind it is unit tested. Checked: typecheck, lint, build, 47 unit tests, and server-side renders of every tab with the real sample data (roster before/after auto-schedule, an edit producing a warning). You tested staff entry and CSV import by hand; the roster, summary, shifts and auto-schedule screens still need your eyes.
