@@ -1,6 +1,7 @@
-import { ConfigProvider } from 'antd'
+import { App as AntApp, ConfigProvider } from 'antd'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 
@@ -14,7 +15,11 @@ createRoot(document.getElementById('root')!).render(
         },
       }}
     >
-      <App />
+      <AntApp>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   </StrictMode>,
 )

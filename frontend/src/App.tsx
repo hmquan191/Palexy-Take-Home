@@ -1,9 +1,14 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { SchedulePage } from './pages/SchedulePage'
+import { SchedulesPage } from './pages/SchedulesPage'
+
 function App() {
   return (
-    <div className="p-6">
-      <h1 className="text-lg font-semibold">Staff Scheduling System</h1>
-      <p className="text-neutral-500">Scaffold ready — schedules UI goes here.</p>
-    </div>
+    <Routes>
+      <Route path="/" element={<SchedulesPage />} />
+      <Route path="/schedules/:id" element={<SchedulePage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 
