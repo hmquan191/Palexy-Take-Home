@@ -180,4 +180,23 @@ describe('useScheduleStore', () => {
     expect(after.assignments).toHaveLength(44)
     expect(useScheduleStore.getState().runAutoSchedule('missing')).toBeNull()
   })
+
+  it('dropOnSlot moves a placement (manual), and refuses duplicates with a reason', async () => {
+    const { useScheduleStore } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSampleSchedule()
+    store.runAutoSchedule(id)
+    const schedule = () => useScheduleStore.getState().schedules[0]
+    const chip = schedule().assignments.find((a) => a.dayIndex === 0)!
+    const pm = schedule().shifts[1].id
+
+    const moved = store.dropOnSlot(id, { staffId: chip.staffId, assignmentId: chip.id }, { dayIndex: 0, shiftId: pm })
+    expect(moved.ok).toBe(true)
+    expect(schedule().assignments).toHaveLength(44)
+    expect(schedule().assignments.find((a) => a.id === chip.id)).toMatchObject({ shiftId: pm, source: 'manual' })
+
+    const again = store.dropOnSlot(id, { staffId: chip.staffId }, { dayIndex: 0, shiftId: pm })
+    expect(again).toEqual({ ok: false, reason: 'duplicate' })
+    expect(schedule().assignments).toHaveLength(44)
+  })
 })

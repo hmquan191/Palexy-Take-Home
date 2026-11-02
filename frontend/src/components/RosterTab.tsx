@@ -1,142 +1,17 @@
-import { Alert, Button, Dropdown, Popconfirm, Progress } from 'antd'
-import { AlertTriangle, Plus, Wand2, X } from 'lucide-react'
+import { DndContext, type DragEndEvent, type DragOverEvent, DragOverlay, type DragStartEvent, PointerSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core'
+import { Alert, App, Button, Popconfirm } from 'antd'
+import { GripVertical, Wand2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { AutoScheduleResult } from '../lib/autoSchedule'
-import { shiftHeadcount } from '../lib/demand'
-import { DAILY_CAP_HOURS, shiftHours, shiftLabel, shiftsOverlap, sortShifts } from '../lib/shifts'
-import { assignedHoursByStaff, getWarnings, type Warning } from '../lib/warnings'
+import { type DragSource, previewDrop } from '../lib/roster'
+import { shiftHours, shiftLabel, sortShifts } from '../lib/shifts'
+import { assignedHoursByStaff, getWarnings } from '../lib/warnings'
 import { useScheduleStore } from '../store/useScheduleStore'
-import type { Schedule, Shift } from '../types'
-
-type Issues = { overMax: Set<string>; dayIssue: Set<string> }
-
-function RosterCell({
-  schedule,
-  dayIndex,
-  shift,
-  hoursByStaff,
-  issues,
-}: {
-  schedule: Schedule
-  dayIndex: number
-  shift: Shift
-  hoursByStaff: Map<string, number>
-  issues: Issues
-}) {
-  const { addAssignment, removeAssignment } = useScheduleStore.getState()
-  const slot = schedule.assignments.filter((a) => a.dayIndex === dayIndex && a.shiftId === shift.id)
-  const needed = shiftHeadcount(schedule, dayIndex, shift)
-  const has = slot.length
-  const short = needed > has
-  const dayLabel = schedule.dayLabels[dayIndex]
-  const length = shiftHours(shift)
-
-  const candidates = schedule.staff
-    .filter((m) => !slot.some((a) => a.staffId === m.id))
-    .map((m) => {
-      const used = hoursByStaff.get(m.id) ?? 0
-      const sameDay = schedule.assignments.filter((a) => a.staffId === m.id && a.dayIndex === dayIndex)
-      const dayHours = sameDay.reduce((sum, a) => {
-        const other = schedule.shifts.find((s) => s.id === a.shiftId)
-        return sum + (other ? shiftHours(other) : 0)
-      }, 0)
-      const clashes = sameDay.some((a) => {
-        const other = schedule.shifts.find((s) => s.id === a.shiftId)
-        return other ? shiftsOverlap(other, shift) : false
-      })
-      return { member: m, used, overWeek: used + length > m.maxWeeklyHours, busyToday: clashes || (dayHours > 0 && dayHours + length > DAILY_CAP_HOURS) }
-    })
-    .sort((a, b) => a.used / a.member.maxWeeklyHours - b.used / b.member.maxWeeklyHours || a.member.name.localeCompare(b.member.name))
-
-  return (
-    <td className={`align-top border p-2 ${short ? 'border-amber-300 bg-amber-50' : 'border-neutral-200 bg-white'}`}>
-      <div className="mb-1.5 flex items-center justify-between text-xs">
-        {needed > 0 ? (
-          <span className={short ? 'font-medium text-amber-700' : 'text-neutral-500'}>
-            {short ? `Needs ${needed}, has ${has}` : `${has} of ${needed} needed`}
-            {has > needed && <span className="text-sky-600"> (+{has - needed})</span>}
-          </span>
-        ) : (
-          <span className="text-neutral-400">{has === 0 ? 'No demand data' : `${has} scheduled`}</span>
-        )}
-      </div>
-
-      <ul className="m-0 flex list-none flex-col gap-1 p-0">
-        {slot.map((a) => {
-          const member = schedule.staff.find((m) => m.id === a.staffId)
-          if (!member) return null
-          const flagged = issues.overMax.has(member.id) || issues.dayIssue.has(`${member.id}|${dayIndex}`)
-          return (
-            <li
-              key={a.id}
-              title={a.source === 'manual' ? 'Added by you' : 'Placed by Auto-schedule'}
-              className={`flex items-center justify-between gap-1 rounded border px-1.5 py-0.5 ${
-                a.source === 'manual' ? 'border-sky-300 bg-sky-50' : 'border-neutral-200 bg-neutral-50'
-              }`}
-            >
-              <span className={`flex min-w-0 items-center gap-1 ${flagged ? 'text-red-600' : 'text-neutral-800'}`}>
-                {flagged && <AlertTriangle size={12} aria-label="Needs review" className="shrink-0" />}
-                <span className="truncate">{member.name}</span>
-              </span>
-              <button
-                type="button"
-                aria-label={`Remove ${member.name} from ${shiftLabel(shift)} on ${dayLabel}`}
-                className="cursor-pointer rounded border-0 bg-transparent p-0.5 text-neutral-400 hover:text-neutral-800"
-                onClick={() => removeAssignment(schedule.id, a.id)}
-              >
-                <X size={12} />
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-
-      <Dropdown
-        trigger={['click']}
-        disabled={candidates.length === 0}
-        menu={{
-          style: { maxHeight: 280, overflowY: 'auto' },
-          onClick: ({ key }) => addAssignment(schedule.id, { staffId: key, shiftId: shift.id, dayIndex }),
-          items: candidates.map(({ member, used, overWeek, busyToday }) => ({
-            key: member.id,
-            label: (
-              <span className="flex items-center justify-between gap-4">
-                <span>{member.name}</span>
-                <span className={`text-xs tabular-nums ${overWeek || busyToday ? 'text-red-600' : 'text-neutral-500'}`}>
-                  {used}/{member.maxWeeklyHours}h{overWeek ? ' over limit' : busyToday ? ' busy that day' : ''}
-                </span>
-              </span>
-            ),
-          })),
-        }}
-      >
-        <Button
-          size="small"
-          type="text"
-          className="mt-1 text-neutral-500"
-          icon={<Plus size={12} />}
-          aria-label={`Add staff to ${shiftLabel(shift)} on ${dayLabel}`}
-        >
-          {schedule.staff.length === 0 ? 'Add staff first' : 'Add'}
-        </Button>
-      </Dropdown>
-    </td>
-  )
-}
-
-function describe(schedule: Schedule, w: Warning): string {
-  const nameOf = (id: string) => schedule.staff.find((m) => m.id === id)?.name ?? 'Someone'
-  switch (w.type) {
-    case 'over-max':
-      return `${nameOf(w.staffId)} is scheduled ${w.assignedHours}h, over their ${w.maxHours}h weekly limit.`
-    case 'over-daily':
-      return `${nameOf(w.staffId)} works ${w.hours}h on ${schedule.dayLabels[w.dayIndex]}, over the ${DAILY_CAP_HOURS}h daily cap.`
-    case 'overlap':
-      return `${nameOf(w.staffId)} has overlapping shifts on ${schedule.dayLabels[w.dayIndex]}.`
-    case 'understaffed':
-      return ''
-  }
-}
+import type { Schedule } from '../types'
+import { type DragData, type DragState, type DropData, IDLE_DRAG } from './roster/dragTypes'
+import { type Issues, RosterCell } from './roster/RosterCell'
+import { StaffPanel } from './roster/StaffPanel'
+import { warningSentence } from './roster/text'
 
 function ResultBanner({ schedule, result }: { schedule: Schedule; result: AutoScheduleResult }) {
   const missing = result.understaffed.reduce((sum, s) => sum + s.needed - s.assigned, 0)
@@ -166,9 +41,7 @@ function ResultBanner({ schedule, result }: { schedule: Schedule; result: AutoSc
       title={`Draft ready, but ${missing} place${missing === 1 ? '' : 's'} could not be filled`}
       description={
         <div>
-          <p className="m-0 mb-1">
-            {result.createdCount} shifts were placed without going over anyone's weekly hours. Still short:
-          </p>
+          <p className="m-0 mb-1">{result.createdCount} shifts were placed without going over anyone's weekly hours. Still short:</p>
           <ul className="m-0 pl-4">
             {result.understaffed.slice(0, 6).map((s) => (
               <li key={`${s.dayIndex}-${s.shiftId}`}>
@@ -184,8 +57,15 @@ function ResultBanner({ schedule, result }: { schedule: Schedule; result: AutoSc
   )
 }
 
+const toSource = (d: DragData): DragSource => ({ staffId: d.staffId, assignmentId: d.kind === 'chip' ? d.assignmentId : undefined })
+
 export function RosterTab({ schedule }: { schedule: Schedule }) {
+  const { message } = App.useApp()
   const [result, setResult] = useState<AutoScheduleResult | null>(null)
+  const [active, setActive] = useState<DragData | null>(null)
+  const [hover, setHover] = useState<DropData | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
   const shifts = sortShifts(schedule.shifts)
   const hoursByStaff = useMemo(() => assignedHoursByStaff(schedule), [schedule])
   const warnings = useMemo(() => getWarnings(schedule), [schedule])
@@ -197,24 +77,66 @@ export function RosterTab({ schedule }: { schedule: Schedule }) {
     }),
     [warnings],
   )
-  const staffProblems = warnings.map((w) => describe(schedule, w)).filter(Boolean)
+
+  // what letting go right now would do; the same calculation the drop itself uses
+  const preview = useMemo(() => {
+    if (!active || !hover) return null
+    if (hover.kind === 'pool') return active.kind === 'chip' ? previewDrop(schedule, toSource(active), 'remove') : null
+    return previewDrop(schedule, toSource(active), { dayIndex: hover.dayIndex, shiftId: hover.shiftId })
+  }, [schedule, active, hover])
+  const drag: DragState = active ? { active, hover, preview } : IDLE_DRAG
+
+  const staffProblems = warnings.map((w) => warningSentence(schedule, w)).filter(Boolean)
   const understaffedHours = warnings.filter((w) => w.type === 'understaffed').length
   const hasRoster = schedule.assignments.length > 0
   const autoCount = schedule.assignments.filter((a) => a.source === 'auto').length
+  const nameOf = (staffId: string) => schedule.staff.find((m) => m.id === staffId)?.name ?? 'Someone'
 
   const run = () => setResult(useScheduleStore.getState().runAutoSchedule(schedule.id))
   const showResult = result !== null && result.assignments === schedule.assignments
+
+  const clearDrag = () => {
+    setActive(null)
+    setHover(null)
+  }
+
+  const onDragStart = (e: DragStartEvent) => setActive(e.active.data.current as DragData)
+  const onDragOver = (e: DragOverEvent) => setHover((e.over?.data.current as DropData | undefined) ?? null)
+  const onDragEnd = (e: DragEndEvent) => {
+    const dragged = e.active.data.current as DragData | undefined
+    const over = e.over?.data.current as DropData | undefined
+    clearDrag()
+    if (!dragged || !over) return
+
+    const store = useScheduleStore.getState()
+    if (over.kind === 'pool') {
+      if (dragged.kind === 'chip') store.removeAssignment(schedule.id, dragged.assignmentId)
+      return
+    }
+    const target = { dayIndex: over.dayIndex, shiftId: over.shiftId }
+    const outcome = previewDrop(schedule, toSource(dragged), target)
+    const committed = store.dropOnSlot(schedule.id, toSource(dragged), target)
+    if (!committed.ok) {
+      if (committed.reason === 'duplicate') {
+        message.info(`${nameOf(dragged.staffId)} is already on that shift on ${schedule.dayLabels[target.dayIndex]}.`)
+      }
+      return
+    }
+    if (outcome.ok && outcome.problems.length > 0) {
+      message.warning(outcome.problems.map((w) => warningSentence(schedule, w)).join(' '))
+    }
+  }
 
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <p className="m-0 text-neutral-500">
-          Who works which shift. Use Auto-schedule for a first draft, then add or remove people in any cell.
+          Who works which shift. Use Auto-schedule for a first draft, then drag people between cells, or use Add in a cell.
         </p>
         {autoCount > 0 ? (
           <Popconfirm
             title="Run Auto-schedule again?"
-            description={`It replaces the ${autoCount} placements it made earlier. Anything you added yourself (blue) is kept.`}
+            description={`It replaces the ${autoCount} placements it made earlier. Anything you added or moved yourself (blue) is kept.`}
             okText="Replace"
             onConfirm={run}
           >
@@ -261,74 +183,67 @@ export function RosterTab({ schedule }: { schedule: Schedule }) {
           title="The roster is empty"
           description={
             schedule.staff.length === 0 || Object.keys(schedule.transactions).length === 0
-              ? 'Add staff and upload demand data first, then run Auto-schedule. You can also add people to cells by hand.'
-              : 'Click Auto-schedule for a draft, or add people to cells by hand.'
+              ? 'Add staff and upload demand data first, then run Auto-schedule. You can also drag people from the list below onto shifts.'
+              : 'Click Auto-schedule for a draft, or drag people from the list below onto shifts.'
           }
         />
       )}
 
-      {shifts.length === 0 ? (
-        <Alert type="info" showIcon title="No shifts yet" description="Add a shift on the Shifts tab to start building the roster." />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="sticky left-0 z-10 w-28 border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-left font-medium">Shift</th>
-                {schedule.dayLabels.map((label) => (
-                  <th key={label} className="min-w-[150px] border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-left font-medium">
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {shifts.map((shift) => (
-                <tr key={shift.id}>
-                  <th className="sticky left-0 z-10 border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-left align-top font-medium">
-                    {shiftLabel(shift)}
-                    <div className="text-xs font-normal text-neutral-500">{shiftHours(shift)} hours</div>
-                  </th>
-                  {schedule.dayLabels.map((_, dayIndex) => (
-                    <RosterCell key={dayIndex} schedule={schedule} dayIndex={dayIndex} shift={shift} hoursByStaff={hoursByStaff} issues={issues} />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={pointerWithin}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+        onDragCancel={clearDrag}
+      >
+        {shifts.length === 0 ? (
+          <Alert type="info" showIcon title="No shifts yet" description="Add a shift on the Shifts tab to start building the roster." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 z-10 w-28 border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-left font-medium">Shift</th>
+                  {schedule.dayLabels.map((label) => (
+                    <th key={label} className="min-w-37.5 border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-left font-medium">
+                      {label}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="mt-2 text-xs text-neutral-500">
-        Blue = added by you, grey = placed by Auto-schedule. Amber cells have fewer people than the busiest hour in that shift needs.
-        In the Add list, people with the fewest hours so far come first.
-      </p>
-
-      {schedule.staff.length > 0 && (
-        <div className="mt-5">
-          <h2 className="mb-2 text-sm font-semibold text-neutral-900">Hours this week</h2>
-          <div className="grid gap-x-8 gap-y-2 md:grid-cols-2">
-            {schedule.staff.map((m) => {
-              const used = hoursByStaff.get(m.id) ?? 0
-              const over = used > m.maxWeeklyHours
-              return (
-                <div key={m.id} className="flex items-center gap-3">
-                  <span className="w-32 shrink-0 truncate">{m.name}</span>
-                  <Progress
-                    className="m-0 flex-1"
-                    size="small"
-                    percent={Math.min(100, (used / m.maxWeeklyHours) * 100)}
-                    status={over ? 'exception' : 'normal'}
-                    showInfo={false}
-                  />
-                  <span className={`w-16 shrink-0 text-right tabular-nums ${over ? 'font-medium text-red-600' : 'text-neutral-600'}`}>
-                    {used}/{m.maxWeeklyHours}h
-                  </span>
-                </div>
-              )
-            })}
+              </thead>
+              <tbody>
+                {shifts.map((shift) => (
+                  <tr key={shift.id}>
+                    <th className="sticky left-0 z-10 border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-left align-top font-medium">
+                      {shiftLabel(shift)}
+                      <div className="text-xs font-normal text-neutral-500">{shiftHours(shift)} hours</div>
+                    </th>
+                    {schedule.dayLabels.map((_, dayIndex) => (
+                      <RosterCell key={dayIndex} schedule={schedule} dayIndex={dayIndex} shift={shift} hoursByStaff={hoursByStaff} issues={issues} drag={drag} />
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-      )}
+        )}
+        <p className="mt-2 text-xs text-neutral-500">
+          Blue = added or moved by you, grey = placed by Auto-schedule. Amber cells have fewer people than the busiest hour in that shift
+          needs. Drag by the grip; while you hold a person over a cell it shows the headcount and their hours after the drop.
+        </p>
+
+        {schedule.staff.length > 0 && <StaffPanel schedule={schedule} hoursByStaff={hoursByStaff} drag={drag} />}
+
+        <DragOverlay dropAnimation={null}>
+          {active && (
+            <div className="pointer-events-none flex cursor-grabbing items-center gap-1 rounded border border-sky-400 bg-white px-2 py-1 shadow-md">
+              <GripVertical size={12} className="text-neutral-400" aria-hidden />
+              {nameOf(active.staffId)}
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
     </section>
   )
 }

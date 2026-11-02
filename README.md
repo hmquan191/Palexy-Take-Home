@@ -13,7 +13,7 @@ backend, database or account is needed.
 cd frontend
 npm install
 npm run dev        # http://localhost:5173
-npm test           # unit tests (47)
+npm test           # unit tests (61)
 npm run build      # typecheck + production build
 ```
 
@@ -36,8 +36,11 @@ unreadable, the app starts empty and says so.
 4. **Shortfalls are shown, not hidden.** If nobody eligible is left, the slot stays open and the draft lists exactly
    which shift on which day is short and by how many. Nobody is ever scheduled past their weekly maximum by the
    auto-scheduler.
-5. **Editing.** Add or remove people in any roster cell. Manual changes are never overwritten by a re-run of
-   Auto-schedule (blue chips). Over-limit hours, an overloaded day, overlapping shifts and understaffed hours are
+5. **Editing.** Drag a person between cells, drag a name from the staff list onto a shift, drag a chip onto the staff
+   list to take it off, or use Add in a cell (the keyboard-friendly route). While you hold someone over a cell it shows
+   the cell's headcount and the person's hours after the drop, flagged amber if it breaks a limit; the preview and the
+   drop use the same function (`lib/roster.ts`), so they cannot disagree. Moved or added people are never overwritten by
+   a re-run of Auto-schedule (blue chips). Over-limit hours, an overloaded day, overlapping shifts and understaffed hours are
    flagged inline and in the always-visible strip at the top; nothing is blocked.
 6. **Summary.** Day x hour grid with transactions, staff hours and transactions per staff hour, day totals, and
    week totals: total staff hours, total transactions, overall ratio (total / total) and the average of the per-cell
@@ -67,10 +70,12 @@ places), because shifts are whole blocks. That ~27% surplus is the price of neve
 ## Known limits and what I would do next
 
 - Greedy is not globally optimal, and days are filled in order, so in a shortage the earlier days are covered first.
-- No availability or days off, roles (e.g. a supervisor per shift), drag-and-drop, or CSV export.
+- No availability or days off, roles (e.g. a supervisor per shift), or CSV export.
+- Drag and drop is pointer and touch only (dnd-kit); keyboard users add people with the Add menu in each cell.
 - Overlapping shifts could use "remaining demand" accounting instead of treating each shift on its own.
-- The UI was checked with unit tests and server-side rendering, and by hand for staff entry and CSV import. A fuller
-  browser pass (keyboard use, small screens) is still to do.
+- The UI was checked with unit tests and server-side rendering, and by hand for staff entry and CSV import. The
+  drag-and-drop interaction itself has not been exercised in a browser by the assistant; a full manual pass (drag,
+  keyboard use, small screens) is still to do.
 
 ## AI-usage note
 

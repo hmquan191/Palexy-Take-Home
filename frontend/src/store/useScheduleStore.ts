@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, type PersistStorage } from 'zustand/middleware'
 import { type AutoScheduleResult, autoSchedule } from '../lib/autoSchedule'
 import { type ParsedDemand, parseTransactionCsv } from '../lib/parseTransactionCsv'
+import { applyDrop, type DragSource, type DropResult, type DropTarget } from '../lib/roster'
 import { SAMPLE_CSV, SAMPLE_STAFF } from '../lib/sampleData'
 import type { Schedule, Shift, Staff } from '../types'
 
@@ -29,6 +30,8 @@ type Actions = {
   updateShift: (scheduleId: string, shiftId: string, input: ShiftInput) => void
   removeShift: (scheduleId: string, shiftId: string) => void
   addAssignment: (scheduleId: string, slot: { staffId: string; shiftId: string; dayIndex: number }) => void
+  /** Drag and drop: moves an existing placement, or adds a person, into a cell. Result says why a drop was refused. */
+  dropOnSlot: (scheduleId: string, source: DragSource, target: DropTarget) => DropResult
   removeAssignment: (scheduleId: string, assignmentId: string) => void
   /** Replaces auto-generated assignments, keeps manual ones. Returns what happened, or null if the schedule is gone. */
   runAutoSchedule: (scheduleId: string) => AutoScheduleResult | null
@@ -152,13 +155,17 @@ export const useScheduleStore = create<State & Actions>()(
           assignments: s.assignments.filter((a) => a.shiftId !== shiftId),
         })),
 
-      addAssignment: (scheduleId, slot) =>
-        update(set, scheduleId, (s) => {
-          const exists = s.assignments.some(
-            (a) => a.staffId === slot.staffId && a.shiftId === slot.shiftId && a.dayIndex === slot.dayIndex,
-          )
-          return exists ? {} : { assignments: [...s.assignments, { id: crypto.randomUUID(), source: 'manual', ...slot }] }
-        }),
+      addAssignment: (scheduleId, slot) => {
+        get().dropOnSlot(scheduleId, { staffId: slot.staffId }, { dayIndex: slot.dayIndex, shiftId: slot.shiftId })
+      },
+
+      dropOnSlot: (scheduleId, source, target) => {
+        const schedule = get().schedules.find((s) => s.id === scheduleId)
+        if (!schedule) return { ok: false, reason: 'unknown-assignment' }
+        const result = applyDrop(schedule, source, target)
+        if (result.ok) update(set, scheduleId, () => ({ assignments: result.assignments }))
+        return result
+      },
 
       removeAssignment: (scheduleId, assignmentId) =>
         update(set, scheduleId, (s) => ({ assignments: s.assignments.filter((a) => a.id !== assignmentId) })),

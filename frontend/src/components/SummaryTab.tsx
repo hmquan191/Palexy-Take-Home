@@ -53,7 +53,7 @@ export function SummaryTab({ schedule }: { schedule: Schedule }) {
             <tr>
               <th className="sticky left-0 border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-left font-medium">Hour</th>
               {schedule.dayLabels.map((label) => (
-                <th key={label} className="min-w-[88px] border border-neutral-200 bg-neutral-50 px-2 py-1.5 font-medium">
+                <th key={label} className="min-w-22 border border-neutral-200 bg-neutral-50 px-2 py-1.5 font-medium">
                   {label}
                 </th>
               ))}
