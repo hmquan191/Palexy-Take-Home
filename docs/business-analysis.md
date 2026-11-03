@@ -1,151 +1,125 @@
-# Business Analysis — Staff Scheduling System
+# Business analysis and design decisions
 
-> **Status:** first-pass analysis. Where it differs from `docs/final-decisions.vi.md`, the final decisions win
-> (fairness is lowest utilization, not most remaining hours; 8h daily cap; N editable; localStorage; drag and drop built).
+How the problem was understood, the options considered, the choices made and the known limits. The brief leaves some
+points open on purpose (how to convert transactions into staff, how to size a shift from hourly demand, what "fair"
+means), so each point below states the assumption used. Vietnamese version: `business-analysis.vi.md`.
 
-Purpose: translate the PDF spec into concrete product decisions. The PDF is deliberately open-ended
-in places ("make a reasonable decision, state your assumption"). This doc lists every open gap found,
-a recommendation, and marks which ones need YOUR call before coding starts (marked **DECISION NEEDED**).
-Evaluators explicitly score "problem reasoning" — this file is also our evidence for that.
+## The problem
 
----
+A store manager must decide who works which shift in a typical week, balancing three things at once:
 
-## 1. Auto-schedule algorithm (the heart of the exercise — Section 4)
+1. **Demand:** busy hours need more people than quiet ones. Transactions per hour are the measure of how busy it is.
+2. **Capacity:** each staff member has a maximum number of hours per week.
+3. **Fairness:** nobody should get very few hours while others are full.
 
-This is the single highest-weighted ambiguity. Get this wrong and "Correctness" + "Problem reasoning"
-both take a hit. Four sub-decisions, in order:
+The central difficulty: demand is measured **per hour**, but people are assigned **per shift** (a continuous block,
+for example 8 hours). The solution therefore has two separate steps:
 
-### 1.1 Demand model: transactions → required staff per hour
-Spec: "one staff member per N transactions per hour, with a sensible minimum (such as one) whenever
-store is open. You choose N and justify it."
+1. **Sizing (MAX rule, sections 1 and 2):** decide how many people each shift needs.
+2. **Assignment (greedy, sections 3 and 4):** decide which people fill those places.
 
-- **required_staff(hour) = ceil(max(transactions, 1 if store open) / N)**, floor 1 during open hours.
-- N is a tunable constant (not hardcoded magic number — expose as config/env so it's defensible live
-  in the interview: "if N=15, change it, re-run, watch roster react").
-- **DECISION NEEDED**: pick N. Sample data range ~2–64 txn/hr. N=15 → busiest hour (64) needs ~5 staff,
-  quiet hour (2) needs 1. Recommend **N=15** as default, user-adjustable in UI (nice defensible stretch,
-  near-zero cost).
+## 1. Demand per hour
 
-### 1.2 Mapping hourly demand onto shifts (shifts are atomic blocks, not hours)
-Spec: "decide how many people each shift needs on each day so that the busiest hours within that
-shift are adequately covered."
+`people needed = max(1, ceil(transactions / N))` for every hour that has data. An hour with no data is treated as
+closed and needs nobody.
 
-Three candidate rules:
-| Rule | Staff count for shift | Risk |
-|---|---|---|
-| **Max-hour** (recommended) | max(required_staff) over all hours in the shift | Overstaffs quiet hours in the shift, but guarantees peak is never understaffed |
-| Average-hour | avg(required_staff) over the shift, rounded | Peak hour inside shift likely understaffed |
-| Sum/weighted | sum of required staff-hours / shift length | Same understaffing risk as average, harder to explain |
+- **N = 15** by default, editable per schedule. On the sample data (about 2 to 64 transactions an hour) the busiest hour
+  needs 5 people and the quietest needs 1.
+- N is a modelling assumption, not measured productivity. Transactions also capture only part of the work (stocking,
+  cleaning and counting are not modelled), so the result is an estimate.
 
-- **Recommendation: max-hour rule.** It's the only one that can't silently understaff a peak hour,
-  and it's the simplest to defend out loud. Document the overstaffing trade-off explicitly in the
-  coverage view (stretch goal 8) rather than hiding it.
-- This directly causes an over/under-coverage pattern worth highlighting in the UI (e.g. 07:00 shift
-  covers 7am quiet ramp-up + 9am-ish peak — early hours get "free" extra coverage).
+## 2. From hourly demand to shift demand
 
-### 1.3 Assignment: filling shifts with specific staff under max-hours constraint
-- Greedy, deterministic, explainable algorithm (not an ILP solver — out of scope for 4-6h):
-  1. Compute required headcount per (day, shift) via 1.2.
-  2. Pick, for each open slot, the eligible person with the **lowest utilization** (assigned / max hours);
-     ties go to more remaining hours, then name. (First draft said "most remaining hours"; replaced because it
-     starves part-timers. See final-decisions.vi.md.)
-  3. For each (day, shift) needing N people, assign the N staff with most remaining hours who (a)
-     have ≥ shift-length hours remaining, (b) don't overlap another of their assignments and keep their day total within the 8h daily cap (adjacent shifts 07-15 + 15-23 don't overlap but would be a 16h day; a shift longer than 8h is allowed only as the sole shift that day. Manual edits may still exceed it, with a warning). Fairness uses lowest utilization (assigned/max), not most remaining hours; see final-decisions.vi.md.
-  4. If fewer eligible staff than required headcount, assign what's available and flag the slot
-     **understaffed** in the result (don't fail, don't silently drop — Section 4 explicitly asks for this).
-- Shift length not evenly dividing weekly max hours (e.g. 8h shifts, someone has 20h max) is expected
-  — that person simply can't take a 3rd shift; stops at 2 shifts (16h), 4h unused. This is fine per
-  spec ("fair, useful amount of work," not "exactly maxed out").
+| Option | People on the shift | Pros | Cons |
+|---|---|---|---|
+| **MAX** (chosen) | The highest hourly need within the shift | No hour is short against the model; easy to explain and check | Extra people in quiet hours; not cost-optimal |
+| Average (rounded up) | The average hourly need | Fewer paid hours | The peak hour is short |
+| Flexible shifts | Several short shifts, each sized for its own demand | Less surplus; uses people with few hours left | Shift times must be chosen; harder to read; more complex |
 
-### 1.4 Fairness definition
-Spec: "nobody scheduled for zero or near-zero hours while others are maxed out... Define what
-'enough hours' means and apply it consistently."
+**Choice: MAX.** A short-staffed peak is felt directly by customers, while surplus hours are a cost that can be measured
+and shown. Example, Friday 07:00-15:00, hourly needs [2, 2, 2, 3, 3, 2, 5, 3]: MAX gives 5 people, the average gives 3,
+which would leave the 13:00 peak (needs 5) two people short.
 
-- **Recommendation**: fairness = **utilization ratio** (assigned_hours / max_hours) should be
-  roughly balanced across staff, not absolute hours. The greedy "lowest utilization first" rule in
-  1.3 implements this directly, which keeps the algorithm simple and explainable.
-- **DECISION NEEDED**: do we need a hard floor (e.g. "everyone must reach ≥50% of their max before
-  anyone reaches 100%")? Recommend: no hard floor for v1 — greedy balancing is good enough and a hard
-  floor adds real complexity (reshuffling logic) for a four-hour budget. State this trade-off in README.
+**Consequence:** on the sample week MAX schedules 352 staff-hours while summing the hourly needs gives 257 (95 more,
+about 27%). The surplus is shown on the Summary tab, and scenario 3 in the app (four 4-hour blocks) shows shorter shifts
+cutting it to 71 hours. Custom shifts are supported, but the app does not search for the best set of shifts.
 
----
+## 3. Assigning people to shifts
 
-## 2. Data model decisions
+A greedy, deterministic algorithm (same input, same roster). It goes day by day, shift by shift in start-time order,
+and fills each open slot with one eligible person:
 
-### 2.1 Schedule scope — **DECISION NEEDED**
-PDF doesn't say whether the app supports multiple schedules (one per store/week) or just one active
-schedule at a time. Recommend: support **multiple schedules**, user can create/switch between them
-(cheap to build if using proper DB keys from the start, and makes demoing "create a schedule" natural
-rather than there being exactly one implicit schedule).
+- **Eligible:** not already on that shift; enough weekly hours left for the whole shift; no overlap with another of
+  their shifts; at most 8 hours that day (a shift longer than 8 hours is allowed only as that person's only shift of
+  the day).
+- **Pick order:** lowest utilization first; ties go to more hours remaining, then name.
+- **When nobody eligible is left:** the slot stays open and the result says which shift on which day is short and by
+  how many. Nobody is scheduled past their weekly limit to fill it.
+- **Manual edits are kept:** placements the user adds or moves are preserved, counted against hours and the daily cap,
+  and not replaced by a re-run.
 
-### 2.2 Persistence — DECIDED: client-side only (Zustand + localStorage)
-PDF allows "in-memory, local storage, or a database" and a fully client-side app. Originally
-Supabase via NestJS was chosen; replaced because graders must run it with one or two commands and no
-account setup. localStorage (not sessionStorage, which dies with the tab) keeps data across reloads for
-the demo. One Zustand store with `persist` is the single place all screens read/write. Business logic
-(CSV parse, auto-schedule, summary) are pure functions in `frontend/src/lib/`. Trade-off to state in
-the README: data is per-browser, no sharing between users, ~5 MB storage limit (ample for one week of
-hourly data).
+The 8-hour daily cap is an assumption: the brief only rules out overlapping shifts, but two back-to-back 8-hour shifts
+would make a 16-hour day, so they are not placed automatically.
 
-### 2.3 Shift model
-- Shift = {start, end} only, scoped to a schedule, not per-day (matches spec: "a shift is defined by
-  only a start time and an end time"). Same shift ID used across all 7 days. Seed: 07:00–15:00,
-  15:00–23:00.
-- Overlapping shifts (if user adds a custom one) are allowed to exist, but a **staff member cannot be
-  double-booked** into two overlapping shifts same day — validate on assignment.
+## 4. Fairness
 
-### 2.4 Transaction import tolerance (Section 3)
-- Sample CSV (`sample_transaction_interview.csv`) has a title row, then header row with day labels
-  like "Fri, 07 Aug", then hour rows "7am".."10pm". Importer must:
-  - Treat day columns **generically** (map by position/order to Mon–Sun of the schedule, not by the
-    literal date label — spec explicitly says "treat columns generically as days of the week").
-  - **DECISION NEEDED**: column order in sample is Fri→Thu (week starts Friday). Does "day 1" column
-    map to the schedule's Monday, or does the schedule's week start wherever the CSV's first column
-    starts? Recommend: **map CSV column order directly onto Day 1..7 of the schedule in order
-    uploaded**, and let the schedule display whatever day-of-week labels the columns imply (don't
-    force Mon-start). Simpler, avoids a silent remapping bug, and matches "treat generically."
-  - Parse hour labels like "7am", "1pm" → 24h; tolerate "07:00" too.
-  - Malformed input (bad hour label, non-numeric cell, missing column) → reject the whole file with a
-    clear row/column-level error message, not partial import.
+**Definition:** utilization = hours assigned / that person's weekly maximum, and the algorithm picks the person with the
+lowest value.
 
----
+Equal absolute hours was rejected because limits differ. With Ann at 40h, Chi at 20h and 48 hours to place, an even
+split (24 and 24) pushes Chi over her limit, while a proportional split gives Ann 32h and Chi 16h, both at 80%. On the
+sample week with 10 people, utilization stays between 80% and 100% and nobody is left at zero hours.
 
-## 3. Aggregated summary view (Section 2.6) — mostly spec'd, two gaps
+**Limits:**
+- There is no minimum-hours floor. Balance is a consequence of the pick order, not a guarantee. With more people than
+  placements, some people necessarily get zero hours.
+- The weekly maximum is treated as a ceiling, not as guaranteed contract hours.
+- Only total weekly hours are balanced, not difficult shifts (weekends, evenings), and preferences are not considered.
+- Shifts are whole blocks, so leftover hours go unused: a person with 20 hours left and 8-hour shifts can take two more
+  and 4 hours stay empty.
 
-- "Transactions per staff hour" per cell: already defined exactly (txn ÷ staff-hours, "–" on /0).
-- **Average transactions per staff hour** (mean of per-cell ratios, only over cells with staff) vs
-  **overall** (total txn ÷ total staff-hours) — spec explicitly wants both shown, they will differ
-  when staffing is uneven. No decision needed, just don't collapse them into one number.
-- Layout (grid vs stacked vs separate grids) — spec says "your choice." Recommend: single grid,
-  3 stacked mini-values per cell (txn / staff-hrs / ratio), color-coded by ratio (defer exact palette
-  to the taste-skill review at build time).
+## 5. Data and storage
 
----
+- **Client-side storage:** Zustand with `persist` writing to localStorage; no backend or database. Reason: it runs with
+  one or two commands and needs no account. Trade-off: data is per browser and not shared between users. localStorage
+  rather than sessionStorage so data survives closing the tab. Unreadable saved data makes the app start empty and tell
+  the user.
+- **Multiple schedules:** the user can create and switch between schedules.
+- **Shifts:** a start and an end time, shared by every day of the week. Defaults 07:00-15:00 and 15:00-23:00. Times are
+  whole hours within one day.
+- **CSV import:** accepts a different or missing week title, hour rows in any order, labels like `7am`, `1pm` or
+  `13:00`, BOM, CRLF and quoted fields. A malformed file (bad hour label, a cell that is not a non-negative whole
+  number, mismatched column count) is rejected whole with the line and column, never half-imported. Day columns keep the
+  file's order and labels (the sample week runs Friday to Thursday), which avoids silently shifting days when remapping;
+  this is one reading of the brief's "treat the columns generically as days of the week". Demand cells can also be edited
+  in place, with whole numbers from 0 to 100,000.
 
-## 4. Live-edit warnings (Section 2.7)
+## 6. Summary and warnings
 
-Spec wants a warning, not a block, when an edit pushes someone over max hours or leaves an hour
-understaffed. Recommend:
-- Over max hours → inline warning badge on the staff member + the specific shift, non-blocking.
-- Understaffed hour (scheduled staff < required_staff from 1.1 for that hour) → warning badge on the
-  cell in both the roster view and aggregated view.
-- No hard validation blocking — manager can intentionally accept a trade-off (matches "surface the
-  outcome... rather than failing silently").
+- Each (day, hour) cell shows transactions, staff on shift (staff-hours) and transactions per staff-hour. A cell with
+  nobody scheduled shows "-".
+- Week totals show both **total transactions / total staff-hours** and the **mean of the per-cell ratios** (cells with
+  staff only). They differ because the second gives every cell equal weight.
+- The model's required staff-hours are shown next to the scheduled ones.
+- **Non-blocking warnings:** over the weekly limit, over 8 hours in a day, overlapping shifts, hours below demand. The
+  manager can knowingly accept a trade-off. Surplus staff is shown neutrally rather than as a warning, because the MAX
+  rule always produces some.
 
----
+## 7. Known limits
 
-## 5. Explicitly out of scope (per PDF Section 5)
-Auth, multi-user, deployment. Roles/skills, availability/days-off and CSV export are
-**stretch goals only** (not built). Drag-and-drop was also a stretch goal and has since been built.
+Sizing (MAX rule):
+- **Surplus:** quiet hours inside a shift carry extra people, so scheduled staff-hours exceed the model's requirement.
+- **Outliers:** one spike hour sets the headcount of the whole shift.
+- **Overlapping shifts:** each shift is sized on its own, so they can be overstaffed. This could be improved by
+  subtracting demand already covered by other shifts.
 
----
+Assignment (greedy):
+- **Not globally optimal:** when capacity is close to demand it can fill fewer slots than the best possible roster
+  (checked against brute force on small instances). When people run out, earlier days are filled first.
+- **Fairness limits:** see section 4.
 
-## 6. Decisions — CONFIRMED
+Not modelled: days off and preferences, roles, breaks, shifts across midnight, work that does not create transactions.
 
-1. **N = 15**, user-adjustable in UI/config.
-2. **Persistence: Zustand + localStorage, no backend** (supersedes the earlier Supabase choice).
-3. **Multiple schedules** supported (create/switch).
-4. **CSV day mapping: direct column order** → Day1..7, no forced Mon-start.
-5. **Fairness: greedy balance only**, no hard utilization floor (default, unchallenged).
+## 8. Out of scope
 
-See `specs/requirements.md` for the resulting ticket breakdown.
+Authentication, multi-user support, deployment. Not built: days off, roles, CSV export, a separate coverage view.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import sampleCsv from '../../../sample_transaction_interview.csv?raw'
+import sampleCsv from '../../../samples/sample_transaction_interview.csv?raw'
 import { parseTransactionCsv } from './parseTransactionCsv'
 import { formatHour, parseHourLabel } from './time'
 

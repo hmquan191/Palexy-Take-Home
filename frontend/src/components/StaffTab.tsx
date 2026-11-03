@@ -6,7 +6,7 @@ import { type StaffInput, useScheduleStore } from '../store/useScheduleStore'
 import type { Schedule, Staff } from '../types'
 
 const NAME_MAX_LENGTH = 60
-const MAX_HOURS_PER_WEEK = 168
+const MAX_HOURS_PER_WEEK = 40
 
 function StaffForm({ initial, onSubmit }: { initial: StaffInput | null; onSubmit: (v: StaffInput) => void }) {
   return (
@@ -30,7 +30,7 @@ function StaffForm({ initial, onSubmit }: { initial: StaffInput | null; onSubmit
       <Form.Item
         label="Maximum hours per week"
         name="maxWeeklyHours"
-        extra="From their contract. The auto-schedule never goes over this."
+        extra="Up to 40 hours a week, from their contract. The auto-schedule never goes over this."
         rules={[{ required: true, message: 'Enter their weekly hour limit, for example 40' }]}
       >
         <InputNumber min={1} max={MAX_HOURS_PER_WEEK} precision={0} className="w-full" />

@@ -1,112 +1,95 @@
 # Staff Scheduling System
 
-A small web app that helps a store manager plan a weekly roster from historical demand. Upload the weekly
-transaction report, add staff and shifts, click **Auto-schedule** for a draft, then adjust it by hand while a
-summary table shows how well staffing matches demand.
+A web app for a store manager to plan a weekly roster from historical demand: upload the transaction report, add staff
+and shifts, click **Auto-schedule**, then adjust the draft while a summary table shows how well staffing matches demand.
 
-Fully client-side: React + Vite + TypeScript, Tailwind CSS, Ant Design, Zustand (persisted to localStorage). No
-backend, database or account is needed.
+Client-side only (React, Vite, TypeScript, Tailwind, Ant Design, Zustand). Data is kept in the browser's localStorage.
+No backend, database or account.
 
-## Run it
+## Run
 
 ```bash
 cd frontend
 npm install
 npm run dev        # http://localhost:5173
-npm test           # unit tests (61)
-npm run build      # typecheck + production build
+npm test           # unit tests
 ```
 
-Quick demo: on the schedules page click **Load sample week** (10 staff plus the provided transaction report), open it,
-and click **Auto-schedule**. Or create an empty schedule and use the **Staff**, **Shifts** and **Demand data** tabs;
-the provided file is also at `sample_transaction_interview.csv`.
+Quickest demo: on the schedules page click **Load sample week**, open it, click **Auto-schedule**.
 
-### Sample reports in `samples/`
+## What it does
 
-Open a schedule (the sample week already has 10 staff), go to **Demand data**, click **Replace CSV**, then **Auto-schedule**.
+- **Staff:** add, edit, remove; *Add sample staff* adds 5 Vietnamese names at 40h each per click; *Remove all*.
+- **Shifts:** the two defaults (07:00-15:00, 15:00-23:00); add, edit, remove. Shifts start and end on the hour.
+- **Demand data:** upload the transaction CSV; any cell can then be edited (whole numbers from 0 up). Bad files are
+  rejected whole with the line and column to fix.
+- **N:** one staff member per N transactions an hour, default 15, editable per schedule.
+- **Auto-schedule:** a draft roster. **Remove all** empties it.
+- **Roster:** drag people between cells, from the staff list onto a shift, or back to the list to remove them; or use
+  *Add* in a cell. While dragging, the cell headcount and the person's hours after the drop are previewed. Over-limit
+  hours, an overloaded day, overlapping shifts and understaffed hours are flagged, never blocked.
+- **Summary:** day x hour grid with transactions, staff hours and transactions per staff hour ("-" when nobody is
+  scheduled), day totals, and week totals including both the overall ratio (total / total) and the average of the
+  per-hour ratios.
+- **How the logic works:** an info panel in the workspace explaining the model, with an example from the current data.
 
-| File | What it shows |
+## Samples and scenarios
+
+`samples/` holds three transaction reports:
+
+| File | Purpose |
 |---|---|
-| `sample_transaction_interview.csv` (repo root) | The provided week, Fri to Thu. Fully covered by the 10-person team. |
-| `samples/transactions_cafe_mon-sun_24h.csv` | Importer tolerance: a different title, Mon to Sun, `07:00` style hours in shuffled order, a trailing comma, Windows line endings, and no 15:00 row (treated as closed). Two peaks (lunch, dinner) and a busier weekend. At N = 15 a few weekend shifts come up short; set N to 30 and the week is covered with spare hours. |
-| `samples/transactions_mall_weekdays_busy.csv` | A 5-day week with a much busier store. With 10 staff, N = 15 leaves most shifts short (the shortfall list and amber cells appear, nobody goes over their hours); N = 30 is still short on a few shifts; N = 40 covers it. Shows how N and team size trade off. |
+| `sample_transaction_interview.csv` | The provided week (Fri to Thu). |
+| `transactions_cafe_mon-sun_24h.csv` | Importer variation: other title, Mon to Sun, `07:00` labels, rows out of order, a closed hour, Windows line endings. |
+| `transactions_mall_weekdays_busy.csv` | A busy 5-day week, to show shortfalls. |
 
-Importing a 5-day file into a schedule that had 7 days drops any placements on the days that no longer exist.
+To use one: open a schedule, **Demand data**, **Replace CSV**.
 
-Data is saved in your browser's localStorage (per browser; cleared if you clear site data). If saved data is ever
-unreadable, the app starts empty and says so.
+I added **Scenario 1, 2, 3** buttons in the workspace to make the trade-offs easy to follow and demo. Each one sets up
+the team, shifts and N on the provided week, runs Auto-schedule, and explains pros, cons and the trade-off with live
+numbers:
 
-## How it works
+1. **Baseline:** 10 staff, two 8h shifts. Fully covered.
+2. **Short-staffed:** 5 staff. Some shifts stay short; nobody goes over their hours.
+3. **Shorter shifts:** four 4h blocks. Less idle time, more placements to manage.
 
-1. **Demand per hour.** `required = max(1, ceil(transactions / N))` for every hour that has data. **N = 15** by default
-   and editable per schedule at the top of the workspace. Hours with no data are treated as closed.
-2. **Demand per shift.** A shift is a fixed block, so it needs as many people as its **busiest hour** (MAX rule).
-   Average would leave peak hours short; MAX never does, at the cost of some extra people in quiet hours.
-3. **Assignment** (greedy, deterministic). Go day by day, shift by shift. For each open slot pick the eligible person
-   with the **lowest utilization** (hours assigned / weekly maximum); ties go to more remaining hours, then name.
-   Eligible means: weekly hours left, no overlapping shift, and the day stays within 8 hours.
-4. **Shortfalls are shown, not hidden.** If nobody eligible is left, the slot stays open and the draft lists exactly
-   which shift on which day is short and by how many. Nobody is ever scheduled past their weekly maximum by the
-   auto-scheduler.
-5. **Editing.** Drag a person between cells, drag a name from the staff list onto a shift, drag a chip onto the staff
-   list to take it off, or use Add in a cell (the keyboard-friendly route). While you hold someone over a cell it shows
-   the cell's headcount and the person's hours after the drop, flagged amber if it breaks a limit; the preview and the
-   drop use the same function (`lib/roster.ts`), so they cannot disagree. Moved or added people are never overwritten by
-   a re-run of Auto-schedule (blue chips). Over-limit hours, an overloaded day, overlapping shifts and understaffed hours are
-   flagged inline and in the always-visible strip at the top; nothing is blocked.
-6. **Summary.** Day x hour grid with transactions, staff hours and transactions per staff hour, day totals, and
-   week totals: total staff hours, total transactions, overall ratio (total / total) and the average of the per-cell
-   ratios (both are shown; they differ). A cell with nobody scheduled shows "–".
+A scenario replaces the open schedule's staff, shifts, N, demand and roster (it asks first if you have your own data).
 
-On the provided week with N = 15 the model asks for 257 staff-hours but the MAX rule schedules 352 (44 shift
-places), because shifts are whole blocks. That ~27% surplus is the price of never being short at the peak.
+## How the auto-scheduler works
+
+1. **Demand per hour:** `max(1, ceil(transactions / N))` for every hour that has data.
+2. **Demand per shift:** a shift is a fixed block, so it needs as many people as its busiest hour (**MAX**). Averaging
+   would leave the peak short. On the provided week this asks for 352 staff-hours against 257 by the hour, the price of
+   fixed shifts.
+3. **Assignment:** day by day, shift by shift, each open slot goes to the eligible person with the lowest utilization
+   (hours assigned / weekly maximum); ties go to more hours remaining, then name. Eligible = enough weekly hours left,
+   no overlapping shift, at most 8 hours that day. Same input, same roster.
+4. **Shortfalls:** if nobody eligible is left the slot stays open and the draft lists which shift is short and by how
+   many. Nobody is scheduled past their weekly maximum. Placements you add or move are kept on a re-run.
 
 ## Assumptions
 
-- N = 15 transactions per staff member per hour is a modelling choice, not measured productivity. Transactions are
-  only a proxy for how busy the store is; prep, cleaning and stock work are not modelled.
-- Any hour present in the report counts as open and needs at least one person.
-- A person works at most 8 hours a day when auto-scheduled (two default 8h shifts in one day would be 16h). Manual
-  edits may exceed it; the app warns.
-- Shifts start and end on the hour, within one day. Shifts are whole blocks, so someone with 20 hours left and 8h
-  shifts gets two shifts and 4 hours stay unused.
-- "Fair" means balanced utilization, not equal hours, so part-timers are not starved while full-timers are maxed
-  out. There is no hard minimum-hours floor.
-- CSV day columns are taken in file order and shown with the file's own labels (the sample runs Fri to Thu). The
-  hour rows may be in any order and use `7am`, `1pm` or `13:00` style labels; a malformed file is rejected whole
-  with the line and column to fix.
-- Auto-schedule fills each shift independently. If shifts overlap it can staff more people than the busiest hour
-  needs (the Shifts tab says so).
-- Multiple schedules are supported. No auth, multi-user or deployment.
-
-## Known limits and what I would do next
-
-- Greedy is not globally optimal, and days are filled in order, so in a shortage the earlier days are covered first.
-- No availability or days off, roles (e.g. a supervisor per shift), or CSV export.
-- Drag and drop is pointer and touch only (dnd-kit); keyboard users add people with the Add menu in each cell.
-- Overlapping shifts could use "remaining demand" accounting instead of treating each shift on its own.
-- The UI was checked with unit tests and server-side rendering, and by hand for staff entry and CSV import. The
-  drag-and-drop interaction itself has not been exercised in a browser by the assistant; a full manual pass (drag,
-  keyboard use, small screens) is still to do.
+- N = 15 is a modelling choice, not measured productivity; transactions are only a proxy for how busy the store is.
+- Any hour present in the report is open and needs at least one person.
+- At most 8 hours per person per day when auto-scheduling (two back-to-back 8h shifts would be 16h). Manual edits may
+  exceed it and are flagged.
+- "Fair" means balanced utilization, not equal hours; there is no minimum-hours floor.
+- Shifts are whole blocks: a person with 20 hours left and 8h shifts gets two shifts.
+- CSV day columns keep the file's order and labels (the provided week runs Fri to Thu).
+- Auto-schedule fills each shift on its own, so overlapping custom shifts can be overstaffed.
+- Greedy, not optimal; when people run out, earlier days are filled first.
+- Not modelled: availability, days off, roles, breaks. No auth or multi-user.
 
 ## AI-usage note
 
-I used Claude in three roles; the step-by-step account is in [docs/ai-process.md](docs/ai-process.md).
+Step by step in [docs/ai-process.md](docs/ai-process.md). In short:
 
-- **Understanding the brief.** I had Claude Opus explain the assignment and its open questions, then asked ChatGPT to
-  challenge that reading. The main question was how many people a fixed 8-hour shift needs. Averaging the hourly demand
-  costs less, because the manager pays for fewer idle hours, but it leaves the busiest hour short-staffed and that hits
-  customers directly. Taking the busiest hour (MAX) never leaves a peak short, at the price of idle time in quiet hours.
-  I chose MAX and show that surplus openly in the summary. Letting the manager build shorter shifts can reduce it later.
-- **Setting the rules for the assistant.** I wrote the `.claude/` folder (the ponytail skill and agents) and `CLAUDE.md`
-  myself, so the assistant kept to the same stack, branching and code-quality rules throughout.
-- **Building.** I delegated scaffolding, code, unit tests and drafts of the docs and this README. I made the product calls
-  (client-side storage instead of a backend, N editable and defaulting to 15, CSV days kept in file order, the 8-hour daily
-  cap, fairness by utilization), tried staff entry and CSV import in the browser, and checked the Friday example by hand
-  against the sample file.
-- **Where I overrode or corrected it.** It first proposed a NestJS + Supabase backend and I moved to localStorage so a
-  reviewer can run the app with two commands. Its first fairness rule (most hours remaining) starved part-timers, so we
-  switched to lowest utilization after I compared two analyses. It missed that two 8-hour shifts back to back make a
-  16-hour day. It guessed the wrong name for a skill until I gave it the right repository.
-- **Not verified by the assistant.** It never opened the UI in a browser, so drag and drop and the roster screens were
-  checked by unit tests and server-side rendering only.
+- **Understanding the brief:** I had Claude Opus explain it, then used ChatGPT to challenge the reading. The key question
+  was MAX vs average for a fixed 8h shift: the average costs less but leaves the busiest hour short, which customers feel;
+  MAX never does, at the price of idle time. I chose MAX.
+- **Setup:** I wrote `.claude/` (the ponytail skill, agents) and `CLAUDE.md` myself so the assistant followed one set of rules.
+- **Delegated:** scaffolding, code, unit tests, drafts of docs and this README.
+- **Decided and checked by me:** client-side storage, N editable, CSV order, the 8h cap, fairness by utilization; I tried
+  staff entry and CSV import in the browser and checked the Friday example by hand.
+- **Overridden:** it first proposed a NestJS + Supabase backend and a fairness rule that starved part-timers; it missed
+  that two back-to-back 8h shifts make a 16h day; it guessed a wrong skill name.
