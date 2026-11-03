@@ -268,4 +268,28 @@ describe('useScheduleStore', () => {
 
     expect(useScheduleStore.getState().applyScenario('missing', 'baseline')).toBeNull()
   })
+
+  it('setTransaction edits one existing cell and refuses negatives, fractions, NaN, huge numbers and unknown cells', async () => {
+    const { useScheduleStore, MAX_TRANSACTIONS_PER_HOUR } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSampleSchedule()
+    const other = store.createSampleSchedule()
+    const tx = (i = 0) => useScheduleStore.getState().schedules[i].transactions
+
+    expect(store.setTransaction(id, 0, 13, 99)).toBe(true)
+    expect(tx()['0-13']).toBe(99)
+    expect(store.setTransaction(id, 0, 13, 0)).toBe(true)
+    expect(tx()['0-13']).toBe(0)
+    expect(store.setTransaction(id, 0, 13, MAX_TRANSACTIONS_PER_HOUR)).toBe(true)
+
+    for (const bad of [-1, -0.5, 2.5, Number.NaN, Infinity, MAX_TRANSACTIONS_PER_HOUR + 1]) {
+      expect(store.setTransaction(id, 0, 7, bad)).toBe(false)
+    }
+    expect(tx()['0-7']).toBe(22)
+    expect(store.setTransaction(id, 0, 3, 5)).toBe(false) // 3am is not an hour in the data
+    expect(store.setTransaction(id, 9, 7, 5)).toBe(false) // no such day
+    expect(store.setTransaction('missing', 0, 7, 5)).toBe(false)
+    expect(tx(1)['0-13']).toBe(64) // the other schedule is untouched
+    expect(other).not.toBe(id)
+  })
 })

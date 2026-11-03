@@ -9,6 +9,7 @@ import type { ScenarioId, Schedule, Shift, Staff } from '../types'
 
 export const STORAGE_KEY = 'staff-scheduling-v1'
 export const DEFAULT_N_PER_STAFF = 15
+export const MAX_TRANSACTIONS_PER_HOUR = 100_000
 const DEFAULT_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const DEFAULT_SHIFTS = [
   { start: '07:00', end: '15:00' },
@@ -29,6 +30,8 @@ type Actions = {
   /** Removes every staff member and, with them, the whole roster. Shifts and demand data stay. */
   removeAllStaff: (scheduleId: string) => void
   importTransactions: (scheduleId: string, demand: Pick<ParsedDemand, 'dayLabels' | 'transactions'>) => void
+  /** Edits one existing demand cell. Returns false, changing nothing, unless count is a whole number from 0 up to the cap. */
+  setTransaction: (scheduleId: string, dayIndex: number, hour: number, count: number) => boolean
   addShift: (scheduleId: string, input: ShiftInput) => void
   updateShift: (scheduleId: string, shiftId: string, input: ShiftInput) => void
   removeShift: (scheduleId: string, shiftId: string) => void
@@ -144,6 +147,15 @@ export const useScheduleStore = create<State & Actions>()(
         })),
 
       removeAllStaff: (scheduleId) => update(set, scheduleId, () => ({ staff: [], assignments: [] })),
+
+      setTransaction: (scheduleId, dayIndex, hour, count) => {
+        const schedule = get().schedules.find((s) => s.id === scheduleId)
+        const key = `${dayIndex}-${hour}`
+        const valid = Number.isInteger(count) && count >= 0 && count <= MAX_TRANSACTIONS_PER_HOUR
+        if (!schedule || !valid || !(key in schedule.transactions)) return false
+        update(set, scheduleId, (s) => ({ transactions: { ...s.transactions, [key]: count } }))
+        return true
+      },
 
       importTransactions: (scheduleId, { dayLabels, transactions }) =>
         update(set, scheduleId, (s) => ({

@@ -1,14 +1,67 @@
-import { Alert, App, Button, Empty, Table, Upload } from 'antd'
+import { Alert, App, Button, Empty, InputNumber, Table, Upload } from 'antd'
 import { FileUp } from 'lucide-react'
-import { useState } from 'react'
+import { type ClipboardEvent, type KeyboardEvent, useState } from 'react'
 import { type CsvError, parseTransactionCsv } from '../lib/parseTransactionCsv'
 import { formatHour } from '../lib/time'
-import { useScheduleStore } from '../store/useScheduleStore'
+import { MAX_TRANSACTIONS_PER_HOUR, useScheduleStore } from '../store/useScheduleStore'
 import type { Schedule } from '../types'
 
 const MAX_FILE_BYTES = 1024 * 1024
 
 type Row = { key: string; label: string; counts: number[]; total: number }
+
+const BLOCKED_KEYS = new Set(['-', '+', '.', ',', 'e', 'E'])
+const RULE = `Use a whole number from 0 to ${MAX_TRANSACTIONS_PER_HOUR.toLocaleString()}.`
+
+/** One editable demand cell. Saves on Enter or when you click away; typing a minus, decimal point or letters is refused. */
+function CountCell({ value, label, onCommit }: { value: number; label: string; onCommit: (count: number) => boolean }) {
+  const { message } = App.useApp()
+  const [draft, setDraft] = useState<number | null>(value)
+  const [seen, setSeen] = useState(value)
+  if (value !== seen) {
+    setSeen(value)
+    setDraft(value)
+  }
+
+  const warn = (text: string) => message.warning({ key: 'demand-cell', content: text })
+  const commit = () => {
+    if (draft === value) return
+    if (draft === null || !onCommit(draft)) {
+      warn(`${label}: that is not a valid count. ${RULE} Kept ${value}.`)
+      setDraft(value)
+    }
+  }
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (BLOCKED_KEYS.has(e.key)) {
+      e.preventDefault()
+      warn(`Transactions cannot be negative or fractional. ${RULE}`)
+    }
+  }
+  const onPaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    if (!/^\d+$/.test(e.clipboardData.getData('text').trim())) {
+      e.preventDefault()
+      warn(`Only digits can be pasted here. ${RULE}`)
+    }
+  }
+
+  return (
+    <InputNumber
+      size="small"
+      aria-label={`Transactions, ${label}`}
+      className="w-20 [&_input]:text-right"
+      min={0}
+      max={MAX_TRANSACTIONS_PER_HOUR}
+      precision={0}
+      controls={false}
+      value={draft}
+      onChange={setDraft}
+      onBlur={commit}
+      onPressEnter={commit}
+      onKeyDown={onKeyDown}
+      onPaste={onPaste}
+    />
+  )
+}
 
 function describeError(e: CsvError): string {
   const where = [e.row !== null && `Line ${e.row}`, e.column].filter(Boolean).join(', ')
@@ -47,7 +100,7 @@ export function DemandTab({ schedule }: { schedule: Schedule }) {
     <section>
       <div className="mb-3 flex items-center justify-between gap-4">
         <p className="text-neutral-500">
-          Transactions per hour for a typical week. Uploading again replaces the data below.
+          Transactions per hour for a typical week. Click any number to edit it (Enter or click away to save). Uploading again replaces the data below.
         </p>
         <Upload
           accept=".csv,text/csv"
@@ -83,7 +136,8 @@ export function DemandTab({ schedule }: { schedule: Schedule }) {
         <>
           <p className="mb-2 text-neutral-500">
             {schedule.dayLabels.length} days, {rows.length} hours ({rows[0].label} to {rows[rows.length - 1].label}),{' '}
-            {weekTotal.toLocaleString()} transactions.
+            {weekTotal.toLocaleString()} transactions. Totals, the summary and the staffing numbers update as you edit; the roster itself only changes
+            when you run Auto-schedule again. An hour set to 0 stays open and still needs one person.
           </p>
           <Table<Row>
             rowKey="key"
@@ -96,7 +150,13 @@ export function DemandTab({ schedule }: { schedule: Schedule }) {
               ...schedule.dayLabels.map((label, d) => ({
                 title: label,
                 align: 'right' as const,
-                render: (_: unknown, row: Row) => row.counts[d],
+                render: (_: unknown, row: Row) => (
+                  <CountCell
+                    value={row.counts[d]}
+                    label={`${row.label} on ${label}`}
+                    onCommit={(count) => useScheduleStore.getState().setTransaction(schedule.id, d, Number(row.key), count)}
+                  />
+                ),
               })),
               { title: 'Total', dataIndex: 'total', align: 'right', className: 'font-medium' },
             ]}
