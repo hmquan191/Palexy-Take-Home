@@ -40,7 +40,7 @@ function StaffForm({ initial, onSubmit }: { initial: StaffInput | null; onSubmit
 }
 
 export function StaffTab({ schedule }: { schedule: Schedule }) {
-  const { addStaff, updateStaff, removeStaff } = useScheduleStore.getState()
+  const { addStaff, updateStaff, removeStaff, removeAllStaff } = useScheduleStore.getState()
   const { message } = App.useApp()
   // null = closed, 'new' = adding, otherwise the staff member being edited
   const [editing, setEditing] = useState<Staff | 'new' | null>(null)
@@ -59,11 +59,32 @@ export function StaffTab({ schedule }: { schedule: Schedule }) {
     message.success(`Added ${sampleBatch.length} sample staff at ${SAMPLE_STAFF_HOURS}h each: ${sampleBatch.map((p) => p.name).join(', ')}.`)
   }
 
+  const removeAll = () => {
+    removeAllStaff(schedule.id)
+    message.success('All staff removed. Add people again, or use Add sample staff.')
+  }
+
   return (
     <section>
       <div className="mb-3 flex items-center justify-between gap-4">
         <p className="text-neutral-500">Who can work this week, and the most hours each person may be scheduled.</p>
         <div className="flex shrink-0 gap-2">
+          <Popconfirm
+            title={`Remove all ${schedule.staff.length} staff?`}
+            description={
+              schedule.assignments.length > 0
+                ? `The ${schedule.assignments.length} shifts placed on the roster go with them. Shifts and demand data stay.`
+                : 'Shifts and demand data stay.'
+            }
+            okText="Remove all"
+            okButtonProps={{ danger: true }}
+            disabled={schedule.staff.length === 0}
+            onConfirm={removeAll}
+          >
+            <Button icon={<Trash2 size={14} />} disabled={schedule.staff.length === 0}>
+              Remove all
+            </Button>
+          </Popconfirm>
           <Tooltip title={sampleBatch.length === 0 ? `All ${SAMPLE_STAFF_POOL.length} sample names are already on the team.` : `Adds the next ${Math.min(SAMPLE_STAFF_BATCH, sampleBatch.length)} from a list of ${SAMPLE_STAFF_POOL.length} sample names, ${SAMPLE_STAFF_HOURS}h each.`}>
             <Button icon={<Users size={14} />} disabled={sampleBatch.length === 0} onClick={addSample}>
               Add sample staff

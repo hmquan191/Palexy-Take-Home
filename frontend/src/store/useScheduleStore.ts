@@ -25,6 +25,8 @@ type Actions = {
   addStaff: (scheduleId: string, input: StaffInput) => void
   updateStaff: (scheduleId: string, staffId: string, input: StaffInput) => void
   removeStaff: (scheduleId: string, staffId: string) => void
+  /** Removes every staff member and, with them, the whole roster. Shifts and demand data stay. */
+  removeAllStaff: (scheduleId: string) => void
   importTransactions: (scheduleId: string, demand: Pick<ParsedDemand, 'dayLabels' | 'transactions'>) => void
   addShift: (scheduleId: string, input: ShiftInput) => void
   updateShift: (scheduleId: string, shiftId: string, input: ShiftInput) => void
@@ -137,6 +139,8 @@ export const useScheduleStore = create<State & Actions>()(
           staff: s.staff.filter((m) => m.id !== staffId),
           assignments: s.assignments.filter((a) => a.staffId !== staffId),
         })),
+
+      removeAllStaff: (scheduleId) => update(set, scheduleId, () => ({ staff: [], assignments: [] })),
 
       importTransactions: (scheduleId, { dayLabels, transactions }) =>
         update(set, scheduleId, (s) => ({

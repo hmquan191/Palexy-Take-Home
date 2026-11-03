@@ -216,4 +216,21 @@ describe('useScheduleStore', () => {
     expect(Object.keys(sample.transactions)).toHaveLength(112)
     expect(untouched.assignments).toHaveLength(1)
   })
+
+  it('removeAllStaff clears staff and their placements but keeps shifts and demand, and only for that schedule', async () => {
+    const { useScheduleStore } = await loadStore()
+    const store = useScheduleStore.getState()
+    const id = store.createSampleSchedule()
+    store.runAutoSchedule(id)
+    const other = store.createSampleSchedule()
+
+    store.removeAllStaff(id)
+    const [cleared, untouched] = useScheduleStore.getState().schedules
+    expect(cleared.staff).toEqual([])
+    expect(cleared.assignments).toEqual([])
+    expect(cleared.shifts).toHaveLength(2)
+    expect(Object.keys(cleared.transactions)).toHaveLength(112)
+    expect(untouched.id).toBe(other)
+    expect(untouched.staff).toHaveLength(10)
+  })
 })
