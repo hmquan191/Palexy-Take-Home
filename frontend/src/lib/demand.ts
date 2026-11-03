@@ -18,3 +18,25 @@ export function shiftHeadcount(schedule: Schedule, dayIndex: number, shift: Shif
 export function requiredStaffHours(schedule: Schedule): number {
   return Object.values(schedule.transactions).reduce((sum, count) => sum + requiredStaff(count, schedule.nPerStaff), 0)
 }
+
+export type MaxExample = { dayLabel: string; shift: Shift; needs: number[]; max: number; averageRounded: number }
+
+/** The busiest shift of the week, with its hourly needs, to show why MAX and the average differ. Null without demand data. */
+export function maxExample(schedule: Schedule): MaxExample | null {
+  let best: MaxExample | null = null
+  for (let dayIndex = 0; dayIndex < schedule.dayLabels.length; dayIndex++) {
+    for (const shift of schedule.shifts) {
+      const needs = coveredHours(shift)
+        .filter((hour) => schedule.transactions[`${dayIndex}-${hour}`] !== undefined)
+        .map((hour) => requiredAt(schedule, dayIndex, hour))
+      if (needs.length === 0) continue
+      const max = Math.max(...needs)
+      const gap = max - Math.ceil(needs.reduce((a, b) => a + b, 0) / needs.length)
+      const bestGap = best ? best.max - best.averageRounded : -1
+      if (!best || max > best.max || (max === best.max && gap > bestGap)) {
+        best = { dayLabel: schedule.dayLabels[dayIndex], shift, needs, max, averageRounded: Math.ceil(needs.reduce((a, b) => a + b, 0) / needs.length) }
+      }
+    }
+  }
+  return best
+}

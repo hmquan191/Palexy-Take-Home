@@ -4,7 +4,8 @@ import { type AutoScheduleResult, autoSchedule } from '../lib/autoSchedule'
 import { type ParsedDemand, parseTransactionCsv } from '../lib/parseTransactionCsv'
 import { applyDrop, type DragSource, type DropResult, type DropTarget } from '../lib/roster'
 import { SAMPLE_CSV, SAMPLE_STAFF } from '../lib/sampleData'
-import type { Schedule, Shift, Staff } from '../types'
+import { scenarioById } from '../lib/scenarios'
+import type { ScenarioId, Schedule, Shift, Staff } from '../types'
 
 export const STORAGE_KEY = 'staff-scheduling-v1'
 export const DEFAULT_N_PER_STAFF = 15
@@ -39,6 +40,8 @@ type Actions = {
   clearAssignments: (scheduleId: string) => void
   /** Replaces auto-generated assignments, keeps manual ones. Returns what happened, or null if the schedule is gone. */
   runAutoSchedule: (scheduleId: string) => AutoScheduleResult | null
+  /** Demo: replaces staff, shifts, N, demand (the provided sample week) and roster with a scenario, then runs Auto-schedule. */
+  applyScenario: (scheduleId: string, scenario: ScenarioId) => AutoScheduleResult | null
 }
 
 let storageWasReset = false
@@ -177,6 +180,26 @@ export const useScheduleStore = create<State & Actions>()(
         update(set, scheduleId, (s) => ({ assignments: s.assignments.filter((a) => a.id !== assignmentId) })),
 
       clearAssignments: (scheduleId) => update(set, scheduleId, () => ({ assignments: [] })),
+
+      applyScenario: (scheduleId, scenarioId) => {
+        const current = get().schedules.find((s) => s.id === scheduleId)
+        const parsed = parseTransactionCsv(SAMPLE_CSV)
+        if (!current || !parsed.ok) return null
+        const scenario = scenarioById(scenarioId)
+        const configured: Schedule = {
+          ...current,
+          scenario: scenarioId,
+          nPerStaff: scenario.nPerStaff,
+          dayLabels: parsed.data.dayLabels,
+          transactions: parsed.data.transactions,
+          staff: scenario.staff.map((m) => ({ id: crypto.randomUUID(), ...m })),
+          shifts: scenario.shifts.map((s) => ({ id: crypto.randomUUID(), ...s })),
+          assignments: [],
+        }
+        const result = autoSchedule(configured)
+        update(set, scheduleId, () => ({ ...configured, assignments: result.assignments }))
+        return result
+      },
 
       runAutoSchedule: (scheduleId) => {
         const schedule = get().schedules.find((s) => s.id === scheduleId)

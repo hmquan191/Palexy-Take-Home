@@ -1,8 +1,11 @@
 import { Button, InputNumber, Result, Tabs, Tooltip } from 'antd'
 import { ArrowLeft, Info } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { DemandTab } from '../components/DemandTab'
+import { LogicInfo } from '../components/LogicInfo'
 import { RosterTab } from '../components/RosterTab'
+import { ScenarioBar } from '../components/ScenarioBar'
 import { ShiftsTab } from '../components/ShiftsTab'
 import { StaffTab } from '../components/StaffTab'
 import { StatsStrip } from '../components/StatsStrip'
@@ -15,6 +18,8 @@ export function SchedulePage() {
   const { id } = useParams()
   const schedule = useScheduleStore((s) => s.schedules.find((x) => x.id === id))
   const setNPerStaff = useScheduleStore((s) => s.setNPerStaff)
+  const [tab, setTab] = useState('roster')
+  const [showLogic, setShowLogic] = useState(false)
 
   if (!schedule) {
     return (
@@ -36,7 +41,19 @@ export function SchedulePage() {
       <Link to="/" className="mb-4 inline-flex items-center gap-1 text-neutral-500">
         <ArrowLeft size={14} aria-hidden /> Schedules
       </Link>
-      <h1 className="mb-4 text-xl font-semibold text-neutral-900">{schedule.name}</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="m-0 text-xl font-semibold text-neutral-900">{schedule.name}</h1>
+        <Button
+          type={showLogic ? 'primary' : 'default'}
+          icon={<Info size={14} />}
+          aria-expanded={showLogic}
+          onClick={() => setShowLogic(!showLogic)}
+        >
+          How the logic works
+        </Button>
+      </div>
+
+      {showLogic && <LogicInfo schedule={schedule} />}
 
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2">
         <span>One staff member for every</span>
@@ -55,9 +72,13 @@ export function SchedulePage() {
         </Tooltip>
       </div>
 
+      <ScenarioBar schedule={schedule} onApplied={() => setTab('roster')} />
+
       <StatsStrip schedule={schedule} />
 
       <Tabs
+        activeKey={tab}
+        onChange={setTab}
         items={[
           { key: 'roster', label: 'Roster', children: <RosterTab schedule={schedule} /> },
           { key: 'summary', label: 'Summary', children: <SummaryTab schedule={schedule} /> },

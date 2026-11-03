@@ -233,4 +233,39 @@ describe('useScheduleStore', () => {
     expect(untouched.id).toBe(other)
     expect(untouched.staff).toHaveLength(10)
   })
+
+  it('applyScenario sets up and schedules each demo scenario with the measured numbers', async () => {
+    const { useScheduleStore } = await loadStore()
+    const { buildSummary } = await import('../lib/summary')
+    const { assignedHoursByStaff } = await import('../lib/warnings')
+    const id = useScheduleStore.getState().createSchedule('Demo')!
+    const run = (scenario: 'baseline' | 'short-staffed' | 'short-shifts') => {
+      const result = useScheduleStore.getState().applyScenario(id, scenario)!
+      const schedule = useScheduleStore.getState().schedules[0]
+      const missing = result.understaffed.reduce((sum, s) => sum + s.needed - s.assigned, 0)
+      return { schedule, missing, totals: buildSummary(schedule).totals }
+    }
+
+    const base = run('baseline')
+    expect(base.schedule.scenario).toBe('baseline')
+    expect(base.schedule.assignments).toHaveLength(44)
+    expect(base.missing).toBe(0)
+    expect(base.totals).toMatchObject({ totalStaffHours: 352, requiredStaffHours: 257 })
+
+    const small = run('short-staffed')
+    expect(small.schedule.staff).toHaveLength(5)
+    expect(small.schedule.assignments).toHaveLength(25)
+    expect(small.missing).toBe(19)
+    for (const [staffId, hours] of assignedHoursByStaff(small.schedule)) {
+      expect(hours).toBeLessThanOrEqual(small.schedule.staff.find((m) => m.id === staffId)!.maxWeeklyHours)
+    }
+
+    const short = run('short-shifts')
+    expect(short.schedule.shifts).toHaveLength(4)
+    expect(short.schedule.assignments).toHaveLength(82)
+    expect(short.missing).toBe(0)
+    expect(short.totals).toMatchObject({ totalStaffHours: 328, requiredStaffHours: 257 })
+
+    expect(useScheduleStore.getState().applyScenario('missing', 'baseline')).toBeNull()
+  })
 })

@@ -18,10 +18,14 @@ export type Assignment = {
   source: 'auto' | 'manual'
 }
 
+export type ScenarioId = 'baseline' | 'short-staffed' | 'short-shifts'
+
 export type Schedule = {
   id: string
   name: string
   createdAt: string
+  /** set when a demo scenario was applied to this schedule */
+  scenario?: ScenarioId
   nPerStaff: number
   dayLabels: string[]
   staff: Staff[]
