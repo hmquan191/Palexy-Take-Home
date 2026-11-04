@@ -40,7 +40,7 @@ cần ai.
 hiển thị. Ví dụ thứ Sáu, ca 07:00–15:00, nhu cầu từng giờ [2, 2, 2, 3, 3, 2, 5, 3]: MAX cho 5 người, trung bình cho 3,
 và lúc 13:00 (cần 5) sẽ thiếu 2 người.
 
-**Hệ quả:** trên tuần mẫu, MAX xếp 352 giờ công trong khi cộng nhu cầu từng giờ chỉ cần 257 (dư 95 giờ, khoảng 27%).
+**Hệ quả:** trên tuần mẫu, MAX xếp 352 giờ công trong khi cộng nhu cầu từng giờ chỉ cần 257 (dư 95 giờ: 37% so với nhu cầu, hay 27% tổng giờ đã xếp).
 Phần dư này được hiển thị trên tab Summary, và kịch bản 3 trong app (ca 4 giờ) cho thấy ca ngắn giảm phần dư xuống
 còn 71 giờ. Các ca người dùng tự tạo được hỗ trợ, nhưng app không tự tìm tổ hợp ca tối ưu.
 
@@ -72,6 +72,7 @@ Trên tuần mẫu với 10 người, tỉ lệ sử dụng nằm trong khoảng
 - Không có sàn giờ tối thiểu. Việc cân bằng là hệ quả của cách chọn người, không phải cam kết. Nếu số người nhiều hơn
   số lượt xếp thì chắc chắn có người 0 giờ.
 - Giờ tối đa được coi là trần, không phải giờ được đảm bảo theo hợp đồng.
+- Người có giờ tối đa nhỏ hơn ca ngắn nhất thì không thể được xếp vào ca nào (ví dụ 6 giờ so với ca 8 giờ) và kết thúc ở 0 giờ.
 - Chỉ cân bằng tổng giờ trong tuần, không cân bằng ca khó (cuối tuần, ca tối) và không xét nguyện vọng.
 - Ca là khối liền nên có giờ lẻ không dùng được: người còn 20 giờ với ca 8 giờ chỉ nhận thêm 2 ca và 4 giờ còn lại bỏ trống.
 

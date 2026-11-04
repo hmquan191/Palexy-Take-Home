@@ -40,8 +40,8 @@ closed and needs nobody.
 and shown. Example, Friday 07:00-15:00, hourly needs [2, 2, 2, 3, 3, 2, 5, 3]: MAX gives 5 people, the average gives 3,
 which would leave the 13:00 peak (needs 5) two people short.
 
-**Consequence:** on the sample week MAX schedules 352 staff-hours while summing the hourly needs gives 257 (95 more,
-about 27%). The surplus is shown on the Summary tab, and scenario 3 in the app (four 4-hour blocks) shows shorter shifts
+**Consequence:** on the sample week MAX schedules 352 staff-hours while summing the hourly needs gives 257 (95 more: 37% above the requirement,
+or 27% of the scheduled hours). The surplus is shown on the Summary tab, and scenario 3 in the app (four 4-hour blocks) shows shorter shifts
 cutting it to 71 hours. Custom shifts are supported, but the app does not search for the best set of shifts.
 
 ## 3. Assigning people to shifts
@@ -74,6 +74,8 @@ sample week with 10 people, utilization stays between 80% and 100% and nobody is
 - There is no minimum-hours floor. Balance is a consequence of the pick order, not a guarantee. With more people than
   placements, some people necessarily get zero hours.
 - The weekly maximum is treated as a ceiling, not as guaranteed contract hours.
+- A person whose weekly maximum is smaller than the shortest shift cannot be scheduled at all (for example 6 hours against
+  8-hour shifts) and ends at zero hours.
 - Only total weekly hours are balanced, not difficult shifts (weekends, evenings), and preferences are not considered.
 - Shifts are whole blocks, so leftover hours go unused: a person with 20 hours left and 8-hour shifts can take two more
   and 4 hours stay empty.

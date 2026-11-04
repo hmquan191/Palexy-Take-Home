@@ -74,7 +74,8 @@ A scenario replaces the open schedule's staff, shifts, N, demand and roster (it 
 - At most 8 hours per person per day when auto-scheduling (two back-to-back 8h shifts would be 16h). Manual edits may
   exceed it and are flagged.
 - "Fair" means balanced utilization, not equal hours; there is no minimum-hours floor.
-- Shifts are whole blocks: a person with 20 hours left and 8h shifts gets two shifts.
+- Shifts are whole blocks: a person with 20 hours left and 8h shifts gets two shifts, and a person whose weekly maximum is
+  below the shortest shift cannot be scheduled.
 - CSV day columns keep the file's order and labels (the provided week runs Fri to Thu).
 - Auto-schedule fills each shift on its own, so overlapping custom shifts can be overstaffed.
 - Greedy, not optimal; when people run out, earlier days are filled first.

@@ -12,7 +12,7 @@ A fuller account behind the short note in the README. Commit history shows the s
    MAX and flexible shifts. The two were merged into `docs/business-analysis.md`.
    - AVG is cheaper for the manager, who pays for fewer idle hours, but leaves the busiest hour short-staffed, which
      customers feel immediately.
-   - MAX guarantees the peak is covered and costs idle hours in quiet periods (about 27% on the sample week).
+   - MAX guarantees the peak is covered and costs idle hours in quiet periods (on the sample week 95 of the 352 scheduled hours, 37% above the hourly requirement).
    - Flexible shifts could cut that surplus but add real complexity; they stay a manager-driven extension.
    - Decision: MAX.
 4. **Decisions I made.** Client-side storage with Zustand + localStorage instead of a backend; N editable per schedule,
